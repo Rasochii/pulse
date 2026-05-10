@@ -1,0 +1,75 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+*.orig
+*.rej
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code / Cursor — local e segredos (modele a partir dos *.example)
+.vscode/flutter-dart-define.json
+.vscode/launch.json
+.history/
+
+# Opcional: metadados locais da IDE
+.cursor/
+
+# Secrets & variáveis de ambiente (nunca no Git)
+.env
+.env.*
+!.env.example
+**/secrets/
+*.pem
+*.p12
+
+# Chaves Supabase só no disco (vide README)
+# (flutter-dart-define.json já ignorado acima)
+
+# Flutter / Dart / Pub
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+**/pubspec_overrides.yaml
+/build/
+coverage/
+**/coverage/
+
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# FVM (version manager Flutter)
+.fvm/flutter_sdk/
+
+# Symbolication / obfuscation
+app.*.symbols
+app.*.map.json
+
+# Android Studio / Gradle
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/local.properties
+
+# Xcode / CocoaPods artefatos (ios/.gitignore cobre Pods; redundância segura)
+**/ios/Pods/**
+
+# Plugins — pastas efêmeras por plataforma
+**/Flutter/ephemeral/
+**/Pods/
