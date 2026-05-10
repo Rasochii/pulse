@@ -54,7 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           if (!mounted) return;
           showPulseSnackBar(
             context,
-            'Cadastro iniciado — confira o e-mail se a confirmação estiver ativa no projeto Supabase.',
+            'Cadastro iniciado — verifique o e-mail se a confirmação estiver ativa no projeto Supabase.',
             kind: PulseSnackKind.neutral,
           );
           setState(() => _registerMode = false);
@@ -141,7 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final canAuthenticateWithProject = configured && auth.isClientKeyAccepted;
 
     return Scaffold(
-      backgroundColor: PulseColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           const _GlowBackdrop(),
@@ -160,10 +160,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 12),
                           Text(
                             _registerMode ? 'Criar conta' : 'Bem-vindo',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium!
-                                .copyWith(color: PulseColors.textPrimary),
+                            style:
+                                Theme.of(context).textTheme.headlineMedium,
                           ).animate().fadeIn(duration: 220.ms).slideY(
                                 begin: 0.05,
                                 end: 0,
@@ -263,22 +261,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       ),
                                     ),
                                     child: _loading
-                                        ? const SizedBox(
+                                        ? SizedBox(
                                             width: 22,
                                             height: 22,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
-                                              color:
-                                                  PulseColors.background,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onPrimary,
                                             ),
                                           )
                                         : Text(
                                             _registerMode
                                                 ? 'Criar e continuar'
                                                 : 'Continuar',
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontWeight: FontWeight.w600,
-                                              color: PulseColors.background,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onPrimary,
                                             ),
                                           ),
                                   ),
@@ -306,9 +307,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                 !_loading
                                             ? _google
                                             : null,
-                                    icon: const Icon(
-                                        Icons.g_mobiledata_rounded,
-                                        color: PulseColors.textPrimary),
+                                    icon: Icon(
+                                      Icons.g_mobiledata_rounded,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface,
+                                    ),
                                     label: const Text('Continuar com Google'),
                                     style: OutlinedButton.styleFrom(
                                       minimumSize:
@@ -434,7 +438,7 @@ class _SecretKeyBanner extends StatelessWidget {
               AppEnv.warningSecretKeyInFlutter,
               style: Theme.of(context).textTheme.bodySmall!.copyWith(
                     height: 1.35,
-                    color: PulseColors.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
             ),

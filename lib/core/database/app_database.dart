@@ -46,13 +46,83 @@ class HabitCompletions extends Table {
   Set<Column> get primaryKey => {habitId, dateKey};
 }
 
-@DriftDatabase(tables: [Habits, HabitCompletions])
+/// Fila offline-first de operações a enviar ao Supabase (Plano 8).
+class SyncOutbox extends Table {
+  TextColumn get id => text()();
+  TextColumn get entity => text()();
+  TextColumn get op => text()();
+  TextColumn get payloadJson => text()();
+  IntColumn get createdAtMs => integer()();
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+  TextColumn get lastError =>
+      text().nullable().withLength(min: 0, max: 2000)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Progressão local de gamificação (Plano 4).
+class GamificationProfiles extends Table {
+  TextColumn get userId => text()();
+  IntColumn get totalXp => integer().withDefault(const Constant(0))();
+  IntColumn get level => integer().withDefault(const Constant(1))();
+  IntColumn get updatedAtMs => integer()();
+
+  @override
+  Set<Column> get primaryKey => {userId};
+}
+
+class UserAchievementUnlocks extends Table {
+  TextColumn get userId => text()();
+  TextColumn get achievementKey => text()();
+  IntColumn get unlockedAtMs => integer()();
+
+  @override
+  Set<Column> get primaryKey => {userId, achievementKey};
+}
+
+/// Check-in rápido de humor/energia (Plano 6).
+class WellbeingLogs extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text()();
+  IntColumn get loggedAtMs => integer()();
+  IntColumn get mood => integer()();
+  IntColumn get energy => integer()();
+  TextColumn get note => text().nullable().withLength(min: 0, max: 500)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Um registro por (usuário, hábito, dia) quando o XP já foi atribuído — evita farm em toggles.
+class HabitXpClaims extends Table {
+  TextColumn get userId => text()();
+  TextColumn get habitId =>
+      text().references(Habits, #id, onDelete: KeyAction.cascade)();
+  IntColumn get dateKey => integer()();
+  IntColumn get claimedAtMs => integer()();
+
+  @override
+  Set<Column> get primaryKey => {userId, habitId, dateKey};
+}
+
+@DriftDatabase(
+  tables: [
+    Habits,
+    HabitCompletions,
+    SyncOutbox,
+    GamificationProfiles,
+    UserAchievementUnlocks,
+    WellbeingLogs,
+    HabitXpClaims,
+  ],
+)
 class PulseDatabase extends _$PulseDatabase {
   PulseDatabase([QueryExecutor? e])
       : super(e ?? driftDatabase(name: 'pulse_db'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -64,6 +134,15 @@ class PulseDatabase extends _$PulseDatabase {
             await m.addColumn(habits, habits.dailyTargetUnit);
             await m.addColumn(habits, habits.reminderTimesJson);
             await _migrateReminderTimesJsonV2();
+          }
+          if (from < 3) {
+            await m.createTable(syncOutbox);
+            await m.createTable(gamificationProfiles);
+            await m.createTable(userAchievementUnlocks);
+            await m.createTable(wellbeingLogs);
+          }
+          if (from < 4) {
+            await m.createTable(habitXpClaims);
           }
         },
       );
@@ -146,11 +225,14 @@ class PulseDatabase extends _$PulseDatabase {
         .get();
   }
 
+  Future<HabitCompletion?> completionRow(String habitId, int dateKey) =>
+      (select(habitCompletions)
+            ..where((c) =>
+                c.habitId.equals(habitId) & c.dateKey.equals(dateKey)))
+          .getSingleOrNull();
+
   Future<bool> hasCompletion(String habitId, int dateKey) async {
-    final q = await (select(habitCompletions)
-          ..where((c) =>
-              c.habitId.equals(habitId) & c.dateKey.equals(dateKey)))
-        .getSingleOrNull();
+    final q = await completionRow(habitId, dateKey);
     return q != null;
   }
 
@@ -184,5 +266,178 @@ class PulseDatabase extends _$PulseDatabase {
     return list
         .where((h) => isWeekdayInBitmask(w, h.weekdaysBitmask))
         .toList();
+  }
+
+  // --- Sync outbox
+
+  Future<void> enqueueOutbox({
+    required String id,
+    required String entity,
+    required String op,
+    required String payloadJson,
+  }) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await into(syncOutbox).insert(
+      SyncOutboxCompanion.insert(
+        id: id,
+        entity: entity,
+        op: op,
+        payloadJson: payloadJson,
+        createdAtMs: now,
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  Future<List<SyncOutboxData>> pendingOutbox({int limit = 50}) {
+    return (select(syncOutbox)
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAtMs)])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<void> deleteOutbox(String id) {
+    return (delete(syncOutbox)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<void> markOutboxFailure(String id, String err, int attempts) {
+    return (update(syncOutbox)..where((t) => t.id.equals(id))).write(
+      SyncOutboxCompanion(
+        attempts: Value(attempts),
+        lastError: Value(err),
+      ),
+    );
+  }
+
+  // --- Gamification
+
+  Future<GamificationProfile?> gamificationForUser(String userId) =>
+      (select(gamificationProfiles)..where((t) => t.userId.equals(userId)))
+          .getSingleOrNull();
+
+  Future<void> upsertGamificationProfile({
+    required String userId,
+    required int totalXp,
+    required int level,
+    required int updatedAtMs,
+  }) async {
+    await into(gamificationProfiles).insertOnConflictUpdate(
+      GamificationProfilesCompanion.insert(
+        userId: userId,
+        totalXp: Value(totalXp),
+        level: Value(level),
+        updatedAtMs: updatedAtMs,
+      ),
+    );
+  }
+
+  Future<void> unlockAchievement({
+    required String userId,
+    required String achievementKey,
+    required int unlockedAtMs,
+  }) async {
+    await into(userAchievementUnlocks).insertOnConflictUpdate(
+      UserAchievementUnlocksCompanion.insert(
+        userId: userId,
+        achievementKey: achievementKey,
+        unlockedAtMs: unlockedAtMs,
+      ),
+    );
+  }
+
+  Future<List<UserAchievementUnlock>> achievementsFor(String userId) {
+    return (select(userAchievementUnlocks)
+          ..where((t) => t.userId.equals(userId))
+          ..orderBy([(t) => OrderingTerm.desc(t.unlockedAtMs)]))
+        .get();
+  }
+
+  Future<bool> hasAchievement(String userId, String key) async {
+    final row = await (select(userAchievementUnlocks)
+          ..where((t) =>
+              t.userId.equals(userId) & t.achievementKey.equals(key)))
+        .getSingleOrNull();
+    return row != null;
+  }
+
+  Future<bool> hasHabitXpClaim({
+    required String userId,
+    required String habitId,
+    required int dateKey,
+  }) async {
+    final row = await (select(habitXpClaims)
+          ..where((t) =>
+              t.userId.equals(userId) &
+              t.habitId.equals(habitId) &
+              t.dateKey.equals(dateKey)))
+        .getSingleOrNull();
+    return row != null;
+  }
+
+  Future<void> insertHabitXpClaim({
+    required String userId,
+    required String habitId,
+    required int dateKey,
+    required int claimedAtMs,
+  }) async {
+    await into(habitXpClaims).insert(
+      HabitXpClaimsCompanion.insert(
+        userId: userId,
+        habitId: habitId,
+        dateKey: dateKey,
+        claimedAtMs: claimedAtMs,
+      ),
+      mode: InsertMode.insertOrIgnore,
+    );
+  }
+
+  // --- Wellbeing
+
+  Future<void> insertWellbeingLog({
+    required String id,
+    required String userId,
+    required int loggedAtMs,
+    required int mood,
+    required int energy,
+    String? note,
+  }) async {
+    await into(wellbeingLogs).insert(
+      WellbeingLogsCompanion.insert(
+        id: id,
+        userId: userId,
+        loggedAtMs: loggedAtMs,
+        mood: mood,
+        energy: energy,
+        note: Value(note),
+      ),
+    );
+  }
+
+  Future<List<WellbeingLog>> wellbeingLogsForUser(
+    String userId, {
+    int limit = 60,
+  }) {
+    return (select(wellbeingLogs)
+          ..where((t) => t.userId.equals(userId))
+          ..orderBy([(t) => OrderingTerm.desc(t.loggedAtMs)])
+          ..limit(limit))
+        .get();
+  }
+
+  /// Apaga dados locais do utilizador e a fila de sync — ex.: exclusão de conta.
+  ///
+  /// Hábitos primeiro (FK em completions e xp_claims com `onDelete: cascade`).
+  Future<void> wipeAllLocalDataForUser(String userId) async {
+    await transaction(() async {
+      await (delete(habits)..where((h) => h.userId.equals(userId))).go();
+      await (delete(gamificationProfiles)
+            ..where((t) => t.userId.equals(userId)))
+          .go();
+      await (delete(userAchievementUnlocks)
+            ..where((t) => t.userId.equals(userId)))
+          .go();
+      await (delete(wellbeingLogs)..where((t) => t.userId.equals(userId))).go();
+      await delete(syncOutbox).go();
+    });
   }
 }

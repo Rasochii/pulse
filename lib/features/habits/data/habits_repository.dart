@@ -2,14 +2,37 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/sync/sync_outbox_writer.dart';
 import '../../../core/utils/date_key.dart';
+import '../../dashboard/data/dashboard_builder.dart';
+import '../../dashboard/domain/dashboard_snapshot.dart';
 import '../domain/habit_metrics.dart';
 import 'habit_today_row.dart';
 
+typedef HabitDayHook =
+    Future<void> Function(Habit habit, DateTime day);
+
+final class HabitCompletionHooks {
+  const HabitCompletionHooks({
+    this.afterMarkedComplete,
+    this.afterUnmarked,
+  });
+
+  final HabitDayHook? afterMarkedComplete;
+  final HabitDayHook? afterUnmarked;
+}
+
 class HabitsRepository {
-  HabitsRepository(this._db);
+  HabitsRepository(
+    this._db, {
+    SyncOutboxWriter? syncOutbox,
+    HabitCompletionHooks? completionHooks,
+  })  : _syncOutbox = syncOutbox,
+        _completionHooks = completionHooks;
 
   final PulseDatabase _db;
+  final SyncOutboxWriter? _syncOutbox;
+  final HabitCompletionHooks? _completionHooks;
   final _uuid = const Uuid();
 
   Stream<List<Habit>> watchHabits(String userId) =>
@@ -80,6 +103,10 @@ class HabitsRepository {
         updatedAtMs: now,
       ),
     );
+    final row = await _db.habitById(id);
+    if (row != null) {
+      await _syncOutbox?.enqueueHabitUpsert(row);
+    }
   }
 
   Future<void> updateHabitFull({
@@ -115,29 +142,67 @@ class HabitsRepository {
         deletedAtMs: Value(habit.deletedAtMs),
       ),
     );
+    final row = await _db.habitById(habit.id);
+    if (row != null) {
+      await _syncOutbox?.enqueueHabitUpsert(row);
+    }
   }
 
   Future<void> deleteHabit(Habit habit) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.softDeleteHabit(habit.id, now);
+    final row = await _db.habitById(habit.id);
+    if (row != null) {
+      await _syncOutbox?.enqueueHabitSoftDelete(habit: row, deletedAtMs: now);
+    }
   }
 
-  Future<void> toggleCompletion({
+  /// Retorna `true` se ficou marcado como concluído.
+  Future<bool> toggleCompletion({
     required Habit habit,
     required DateTime day,
   }) async {
     final key = dateKeyFromDateTime(day);
     final exists = await _db.hasCompletion(habit.id, key);
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (exists) {
       await _db.deleteCompletion(habit.id, key);
+      await _syncOutbox?.enqueueCompletionDelete(habitId: habit.id, dateKey: key);
+      final cb = _completionHooks?.afterUnmarked;
+      if (cb != null) await cb(habit, day);
+      return false;
     } else {
       await _db.setCompletion(
         habitId: habit.id,
         dateKey: key,
-        completedAtMs: now,
+        completedAtMs: nowMs,
         quantity: 1,
       );
+      await _syncOutbox?.enqueueCompletionUpsert(
+        habitId: habit.id,
+        dateKey: key,
+        completedAtMs: nowMs,
+        quantity: 1,
+      );
+      final cb = _completionHooks?.afterMarkedComplete;
+      if (cb != null) await cb(habit, day);
+      return true;
     }
+  }
+
+  Future<DashboardSnapshot> dashboardSnapshot({
+    required String userId,
+    required DateTime now,
+    String? displayName,
+  }) async {
+    final habits = await _db.habitsForUser(userId);
+    final ids = habits.map((e) => e.id).toList();
+    final comps = await _db.completionsForUserHabits(ids);
+    return DashboardBuilder.compute(
+      habits: habits,
+      completions: comps,
+      now: now,
+      displayName: displayName,
+    );
   }
 }

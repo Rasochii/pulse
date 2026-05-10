@@ -98,6 +98,19 @@ ThemeData buildPulseDarkTheme() {
         fontWeight: FontWeight.w500,
       ),
     ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: scheme.surface,
+      indicatorColor: PulseColors.accent.withValues(alpha: 0.22),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          color:
+              selected ? PulseColors.accent : PulseColors.textSecondary,
+        );
+      }),
+    ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
         TargetPlatform.android: CupertinoPageTransitionsBuilder(),

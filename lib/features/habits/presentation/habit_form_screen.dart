@@ -7,11 +7,12 @@ import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_providers.dart';
+import '../../dashboard/presentation/dashboard_providers.dart';
+import '../../gamification/presentation/gamification_providers.dart';
+import '../../insights/presentation/insights_providers.dart';
 import '../domain/habit_daily_goal_display.dart';
 import '../domain/habit_reminder_times_codec.dart';
 import '../domain/pulse_habit_icons.dart';
-import 'habits_providers.dart';
-
 const List<int> _kAccentColors = [
   0xFF7C83FF,
   0xFF4ADE80,
@@ -225,7 +226,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
       if (mounted) {
         showPulseSnackBar(
           context,
-          'Entre na conta para salvar hábitos.',
+          'Faça login para salvar hábitos.',
           kind: PulseSnackKind.error,
         );
       }
@@ -298,6 +299,13 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
           reminderTimesJson: reminderJson,
         );
       }
+      try {
+        await ref.read(pulseHabitNotificationSchedulerProvider).rescheduleAll(uid);
+        await ref.read(pulseSyncEngineProvider).flushOutbox(uid);
+      } catch (_) {}
+      ref.invalidate(dashboardSnapshotProvider);
+      ref.invalidate(insightsListProvider);
+      ref.invalidate(gamificationProfileProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -334,6 +342,16 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     if (!ok || !mounted) return;
     try {
       await ref.read(habitsRepositoryProvider).deleteHabit(h);
+      try {
+        final u = ref.read(authRepositoryProvider).currentUser?.id;
+        if (u != null) {
+          await ref.read(pulseHabitNotificationSchedulerProvider).rescheduleAll(u);
+          await ref.read(pulseSyncEngineProvider).flushOutbox(u);
+        }
+      } catch (_) {}
+      ref.invalidate(dashboardSnapshotProvider);
+      ref.invalidate(insightsListProvider);
+      ref.invalidate(gamificationProfileProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -349,7 +367,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: PulseColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -400,7 +418,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
               style: Theme.of(context)
                   .textTheme
                   .titleSmall!
-                  .copyWith(color: PulseColors.textPrimary),
+                  .copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -471,7 +491,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
               style: Theme.of(context)
                   .textTheme
                   .titleSmall!
-                  .copyWith(color: PulseColors.textPrimary),
+                  .copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -501,7 +523,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
               style: Theme.of(context)
                   .textTheme
                   .titleSmall!
-                  .copyWith(color: PulseColors.textPrimary),
+                  .copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
             ),
             const SizedBox(height: 10),
             SingleChildScrollView(
@@ -526,7 +550,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
               style: Theme.of(context)
                   .textTheme
                   .titleSmall!
-                  .copyWith(color: PulseColors.textPrimary),
+                  .copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
             ),
             const SizedBox(height: 10),
             Row(
@@ -566,7 +592,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
               style: Theme.of(context)
                   .textTheme
                   .titleSmall!
-                  .copyWith(color: PulseColors.textPrimary),
+                  .copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
             ),
             const SizedBox(height: 4),
             Text(

@@ -17,3 +17,12 @@ bool isWeekdayInBitmask(int weekday, int bitmask) {
   final bit = weekday - 1;
   return (bitmask & (1 << bit)) != 0;
 }
+
+/// Letras tradicionais em PT (calendário escolar / planilhas): S,T,Q,Q,S,S,D.
+/// [DateTime.weekday]: 1 = segunda … 7 = domingo.
+const kWeekdayLettersPt = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+
+/// Uma letra por dia da semana (mesmo esquema do heatmap: S,T,Q,Q,S,S,D).
+String shortWeekdayPt(DateTime date) {
+  return kWeekdayLettersPt[date.weekday - 1];
+}

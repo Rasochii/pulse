@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../dashboard/presentation/dashboard_providers.dart';
 import '../domain/habit_daily_goal_display.dart';
 import '../domain/pulse_habit_icons.dart';
 import 'habit_form_screen.dart';
@@ -23,12 +24,14 @@ class HabitsListTab extends ConsumerWidget {
       if (ok == true && context.mounted) {
         ref.invalidate(todayHabitsProvider);
         ref.invalidate(habitsWatchProvider);
+        ref.invalidate(dashboardSnapshotProvider);
       }
     }
 
     return Scaffold(
-      backgroundColor: PulseColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: FloatingActionButton(
+        heroTag: 'pulse_habits_create_fab',
         elevation: 0,
         backgroundColor: PulseColors.accent,
         foregroundColor: Colors.white,
@@ -49,8 +52,11 @@ class HabitsListTab extends ConsumerWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.emoji_events_outlined,
-                          size: 56, color: PulseColors.borderSubtle),
+                      Icon(
+                        Icons.emoji_events_outlined,
+                        size: 56,
+                        color: PulseColors.borderSubtle,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'Nenhum hábito criado.',
@@ -78,10 +84,7 @@ class HabitsListTab extends ConsumerWidget {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       'Todos os hábitos',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge!
-                          .copyWith(color: PulseColors.textPrimary),
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
                   );
                 }
@@ -119,20 +122,23 @@ class HabitsListTab extends ConsumerWidget {
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleMedium!
-                                      .copyWith(color: PulseColors.textPrimary),
+                                      .copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                      ),
                                 ),
                                 if (h.category != null &&
                                     h.category!.trim().isNotEmpty)
                                   Text(
                                     h.category!,
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                   ),
                                 Text(
                                   habitDailyGoalLabel(h),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall!
+                                  style: Theme.of(context).textTheme.bodySmall!
                                       .copyWith(
                                         fontSize: 11,
                                         color: PulseColors.textSecondary,
@@ -140,18 +146,21 @@ class HabitsListTab extends ConsumerWidget {
                                 ),
                                 Consumer(
                                   builder: (ctx, cref, _) {
-                                    final m =
-                                        cref.watch(habitMetricsProvider(h.id));
+                                    final m = cref.watch(
+                                      habitMetricsProvider(h.id),
+                                    );
                                     return m.when(
                                       loading: () => const SizedBox.shrink(),
                                       error: (_, _) => const SizedBox.shrink(),
                                       data: (metrics) => Text(
                                         'Sequência ${metrics.currentStreak} • taxa 30 d ${_pct(metrics.completionRate30d)}',
-                                        style:
-                                            Theme.of(ctx).textTheme.bodySmall!.copyWith(
-                                                  fontSize: 11,
-                                                  color: PulseColors.textSecondary,
-                                                ),
+                                        style: Theme.of(ctx)
+                                            .textTheme
+                                            .bodySmall!
+                                            .copyWith(
+                                              fontSize: 11,
+                                              color: PulseColors.textSecondary,
+                                            ),
                                       ),
                                     );
                                   },
@@ -159,8 +168,10 @@ class HabitsListTab extends ConsumerWidget {
                               ],
                             ),
                           ),
-                          const Icon(Icons.chevron_right_rounded,
-                              color: PulseColors.borderSubtle),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: PulseColors.borderSubtle,
+                          ),
                         ],
                       ),
                     ),

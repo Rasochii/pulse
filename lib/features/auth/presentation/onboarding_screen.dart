@@ -38,7 +38,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       case PermissionStatus.denied:
         msg =
             'Permissão negada neste momento. No simulador isso pode acontecer sem o alerta da Apple '
-            '(teste num iPhone físico ou ative em Ajustes › Pulse › Notificações).';
+            '(teste num iPhone físico ou ative em Configurações › Pulse › Notificações).';
         break;
       case PermissionStatus.restricted:
         msg =
@@ -46,7 +46,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         break;
       case PermissionStatus.permanentlyDenied:
         msg =
-            'Permissão bloqueada. Abra Ajustes › Pulse › Notificações e ative quando quiser.';
+            'Permissão bloqueada. Abra Configurações › Pulse › Notificações e ative quando quiser.';
         break;
     }
     showPulseSnackBar(context, msg, kind: PulseSnackKind.neutral);
@@ -95,7 +95,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: PulseColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           _GlowOrb(
@@ -342,11 +342,11 @@ class _ReadySlide extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: const Text(
+                child: Text(
                   'Começar',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: PulseColors.background,
+                    color: Theme.of(context).colorScheme.onPrimary,
                   ),
                 ),
               ),
@@ -436,9 +436,9 @@ class _SlideShell extends StatelessWidget {
                     ),
                     child: Text(
                       primaryLabel,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: PulseColors.background,
+                        color: Theme.of(context).colorScheme.onPrimary,
                       ),
                     ),
                   ),

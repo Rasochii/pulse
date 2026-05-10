@@ -11,6 +11,9 @@ abstract final class AuthErrorMessages {
     if (error is PulseAuthFailure) {
       return error.message;
     }
+    if (error is FunctionException) {
+      return _fromFunctionException(error);
+    }
     if (error is AuthWeakPasswordException) {
       if (error.reasons.isNotEmpty) {
         return 'Senha fraca: ${error.reasons.join('; ')}';
@@ -18,10 +21,10 @@ abstract final class AuthErrorMessages {
       return _sanitizeMessage(error.message);
     }
     if (error is AuthInvalidJwtException) {
-      return 'Chave de API ou token inválido. Confira SUPABASE_ANON_KEY (use publishable/anon no app; nunca a chave sb_secret_) e a URL do projeto.';
+      return 'Chave de API ou token inválido. Verifique SUPABASE_ANON_KEY (publishable ou anon no app — nunca a chave sb_secret_) e a URL do projeto.';
     }
     if (error is AuthSessionMissingException) {
-      return 'Sessão inválida ou expirada. Faça login novamente.';
+      return 'Sessão inválida ou expirada. Entre na conta de novo.';
     }
     if (error is AuthApiException) {
       return _fromAuthApi(error);
@@ -37,6 +40,27 @@ abstract final class AuthErrorMessages {
     return _sanitizeMessage(error.toString());
   }
 
+  static String _fromFunctionException(FunctionException e) {
+    final d = e.details;
+    if (d is Map) {
+      final err = d['error'];
+      if (err is String && err.trim().isNotEmpty) {
+        return _sanitizeMessage(err);
+      }
+      for (final key in ['msg', 'message', 'error_description']) {
+        final v = d[key];
+        if (v is String && v.trim().isNotEmpty) {
+          return _sanitizeMessage(v);
+        }
+      }
+    }
+    if (d is String && d.trim().isNotEmpty) return _sanitizeMessage(d);
+    if (e.status >= 500) {
+      return 'Servidor indisponível ao excluir conta. Tente mais tarde.';
+    }
+    return 'Não foi possível excluir a conta.';
+  }
+
   static String _fromAuthApi(AuthApiException e) {
     final msg = _sanitizeMessage(e.message);
     final code = e.code;
@@ -47,7 +71,7 @@ abstract final class AuthErrorMessages {
       case 'user_not_found':
         return 'E-mail ou senha incorretos.';
       case 'email_not_confirmed':
-        return 'Confirme o e-mail antes de entrar — verifique a caixa de entrada.';
+        return 'Confirme o e-mail antes de entrar na conta — veja também na caixa de spam.';
       case 'bad_jwt':
       case 'no_authorization':
         return _badKeyOrJwt(msg);
@@ -66,7 +90,7 @@ abstract final class AuthErrorMessages {
         if (_looksLikeInvalidCredentials(msg.toLowerCase())) {
           return 'E-mail ou senha incorretos.';
         }
-        return msg.isEmpty ? 'Dados inválidos. Confira e-mail e senha.' : msg;
+        return msg.isEmpty ? 'Dados inválidos. Verifique e-mail e senha.' : msg;
       default:
         break;
     }
@@ -92,7 +116,7 @@ abstract final class AuthErrorMessages {
 
   static String _badKeyOrJwt(String sanitized) => sanitized.isEmpty
       ? 'Chave de API recusada. No app Flutter use apenas a anon/publishable — nunca sb_secret_. No dashboard: Publishable ou legado anon (eyJ...).'
-      : '$sanitized\n\nSe aparecer erro 401/403, confira SUPABASE_ANON_KEY (publishable ou JWT eyJ...) e SUPABASE_URL.';
+      : '$sanitized\n\nSe aparecer erro 401/403, verifique SUPABASE_ANON_KEY (publishable ou JWT eyJ…) e SUPABASE_URL.';
 
   static String _networkMessage(String raw, String? statusCode) {
     final s = _sanitizeMessage(raw);

@@ -51,7 +51,7 @@ class AuthRepository {
       );
       if (res.session == null) {
         throw const PulseAuthFailure(
-          'Não foi possível abrir sessão — confira se o e-mail foi confirmado no Supabase.',
+          'Não foi possível entrar na conta — verifique se o e-mail foi confirmado no Supabase.',
         );
       }
     } on PulseAuthFailure {
@@ -119,7 +119,7 @@ class AuthRepository {
       );
       if (res.session == null) {
         throw const PulseAuthFailure(
-          'Google conectou, mas não foi possível abrir sessão — confira OAuth no projeto Supabase.',
+          'Google conectou, mas não foi possível entrar na conta — verifique o OAuth no projeto Supabase.',
         );
       }
     } on PulseAuthFailure {
@@ -138,6 +138,19 @@ class AuthRepository {
       await Supabase.instance.client.auth.signOut();
     } catch (_) {
       // Melhor logout local parcial que travar fluxo por rede.
+    }
+  }
+
+  /// Chama a Edge Function `delete-account` no Supabase (apaga dados `pulse_*` e o utilizador em `auth`).
+  Future<void> deleteAccount() async {
+    if (!canUseSupabase) throw PulseAuthFailure.supabaseMissing();
+    _rejectSecretKeyIfNeeded();
+    try {
+      await Supabase.instance.client.functions.invoke('delete-account');
+    } on PulseAuthFailure {
+      rethrow;
+    } catch (e) {
+      throw PulseAuthFailure(AuthErrorMessages.from(e));
     }
   }
 }

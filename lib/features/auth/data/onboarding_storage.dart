@@ -11,3 +11,8 @@ Future<void> setOnboardingDoneForUser(String userId, {bool done = true}) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool('$_keyPrefix$userId', done);
 }
+
+Future<void> clearOnboardingForUser(String userId) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove('$_keyPrefix$userId');
+}
