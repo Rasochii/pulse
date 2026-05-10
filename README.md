@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/readme-banner.svg" alt="Pulse — aplicativo de hábitos com linha pulsante em gradiente" width="920"/>
+  <img src="./docs/readme-banner.svg" alt="Pulse" width="92%"/>
 </p>
 
 <p align="center">
@@ -7,7 +7,7 @@
   <a href="https://dart.dev"><img src="https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white" alt="Dart"/></a>
   <a href="https://riverpod.dev"><img src="https://img.shields.io/badge/Riverpod-146C2E?style=for-the-badge&logo=flutter&logoColor=white" alt="Riverpod"/></a>
   <a href="https://supabase.com"><img src="https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=1a1a1a" alt="Supabase"/></a>
-  <a href="https://drift.simonbinder.eu"><img src="https://img.shields.io/badge/SQLite%20%28Drift%29-7C83FF?style=for-the-badge&logo=sqlite&logoColor=white" alt="Drift SQLite"/></a>
+  <a href="https://drift.simonbinder.eu"><img src="https://img.shields.io/badge/Drift-SQLite-7C83FF?style=for-the-badge&logo=sqlite&logoColor=white" alt="Drift SQLite"/></a>
 </p>
 
 <br/>
@@ -18,9 +18,9 @@
 <sub>Ótimo para quem só quer um app que abre rápido, mostra <strong>hoje</strong>, e registra conquistas sem esforço.</sub></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Offline--first-SQLite-1e1b4b?style=for-the-badge&logo=database&labelColor=312e81&color=4338ca" alt="Offline-first SQLite"/>
+  <img src="https://img.shields.io/badge/Armazenamento-offline_SQLite-4338ca?style=for-the-badge&logo=database&labelColor=1e1b4b&color=4338ca" alt="SQLite offline"/>
   &nbsp;&nbsp;
-  <img src="https://img.shields.io/badge/Navega%C3%A7%C3%A3o-go_router-1e293b?style=for-the-badge&labelColor=0f172a&color=334155" alt="go_router"/>
+  <img src="https://img.shields.io/badge/go_router-navegacao_declarativa-475569?style=for-the-badge&labelColor=1e293b" alt="go_router"/>
 </p>
 
 <br/>
@@ -60,7 +60,7 @@
       <small>Splash · login · onboarding<br/><b>Google & e-mail</b> quando Supabase está configurado.<br/><i>Roda também sem backend para demos de UI.</i></small>
     </td>
     <td valign="top" align="center">
-      <img src="https://img.shields.io/badge/UI-glass%20%26%20tema-oscur-22c55e?style=for-the-badge&labelColor=14532d"/><br/><br/>
+      <img src="https://img.shields.io/badge/UI-glass_panels-22c55e?style=for-the-badge&labelColor=14532d"/><br/><br/>
       <b>Visual atual, sem poluição</b><br/><br/>
       <small>Painéis “glass”.<br/>Tema coeso · animações onde ajudam<br/><i>Fluxo navegável e estados bem definidos.</i></small>
     </td>
@@ -123,7 +123,7 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run
 ```
 
-<p align="center"><small>Supabase via <code>--dart-define=SUPABASE_URL=...</code> e <code>SUPABASE_ANON_KEY=...</code> · modelos em <code>.vscode/*.example.json</code> · <b>não commite chaves</b>.</small></p>
+<p align="center"><small>Supabase via <code>--dart-define=SUPABASE_URL=...</code> e <code>SUPABASE_ANON_KEY=...</code> · modelos em <code>.vscode/*.example.json</code></small></p>
 
 ---
 
