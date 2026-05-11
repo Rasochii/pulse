@@ -54,7 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           if (!mounted) return;
           showPulseSnackBar(
             context,
-            'Cadastro iniciado — verifique o e-mail se a confirmação estiver ativa no projeto Supabase.',
+            'Cadastro iniciado — verifique seu e-mail para confirmar a conta.',
             kind: PulseSnackKind.neutral,
           );
           setState(() => _registerMode = false);
@@ -70,11 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context.go(AppShellScreen.path);
     } on PulseAuthFailure catch (e) {
       if (!mounted) return;
-      showPulseSnackBar(
-        context,
-        e.message,
-        kind: PulseSnackKind.error,
-      );
+      showPulseSnackBar(context, e.message, kind: PulseSnackKind.error);
     } catch (e) {
       if (!mounted) return;
       showPulseSnackBar(
@@ -149,30 +145,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const SizedBox(height: 12),
                           Text(
-                            _registerMode ? 'Criar conta' : 'Bem-vindo',
-                            style:
-                                Theme.of(context).textTheme.headlineMedium,
-                          ).animate().fadeIn(duration: 220.ms).slideY(
-                                begin: 0.05,
-                                end: 0,
-                              ),
+                                _registerMode ? 'Criar conta' : 'Bem-vindo',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineMedium,
+                              )
+                              .animate()
+                              .fadeIn(duration: 220.ms)
+                              .slideY(begin: 0.05, end: 0),
                           const SizedBox(height: 8),
                           Text(
                             'Entre para acompanhar consistência,\nníveis e hábitos com clareza.',
-                            style:
-                                Theme.of(context).textTheme.bodyMedium!.copyWith(
-                                      color: PulseColors.textSecondary,
-                                    ),
+                            style: Theme.of(context).textTheme.bodyMedium!
+                                .copyWith(color: PulseColors.textSecondary),
                           ).animate(delay: 40.ms).fadeIn(duration: 220.ms),
                           if (!configured) ...[
                             const SizedBox(height: 14),
@@ -188,8 +187,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: Form(
                               key: _formKey,
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.stretch,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   if (_registerMode) ...[
                                     TextFormField(
@@ -202,8 +200,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ],
                                   TextFormField(
                                     controller: _email,
-                                    keyboardType:
-                                        TextInputType.emailAddress,
+                                    keyboardType: TextInputType.emailAddress,
                                     decoration: const InputDecoration(
                                       labelText: 'E-mail',
                                     ),
@@ -247,17 +244,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     const SizedBox(height: 6),
                                   const SizedBox(height: 6),
                                   FilledButton(
-                                    onPressed: canAuthenticateWithProject &&
-                                            !_loading
+                                    onPressed:
+                                        canAuthenticateWithProject && !_loading
                                         ? _submit
                                         : null,
                                     style: FilledButton.styleFrom(
                                       backgroundColor: PulseColors.accent,
-                                      minimumSize:
-                                          const Size.fromHeight(52),
+                                      minimumSize: const Size.fromHeight(52),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(14),
+                                        borderRadius: BorderRadius.circular(14),
                                       ),
                                     ),
                                     child: _loading
@@ -266,9 +261,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             height: 22,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onPrimary,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary,
                                             ),
                                           )
                                         : Text(
@@ -277,9 +272,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                 : 'Continuar',
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onPrimary,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary,
                                             ),
                                           ),
                                   ),
@@ -289,12 +284,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       const Expanded(child: Divider()),
                                       Padding(
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 12),
+                                          horizontal: 12,
+                                        ),
                                         child: Text(
                                           'ou',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
                                         ),
                                       ),
                                       const Expanded(child: Divider()),
@@ -303,37 +299,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   const SizedBox(height: 12),
                                   OutlinedButton.icon(
                                     onPressed:
-                                        canAuthenticateWithProject &&
-                                                !_loading
-                                            ? _google
-                                            : null,
+                                        canAuthenticateWithProject && !_loading
+                                        ? _google
+                                        : null,
                                     icon: Icon(
                                       Icons.g_mobiledata_rounded,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
                                     ),
                                     label: const Text('Continuar com Google'),
                                     style: OutlinedButton.styleFrom(
-                                      minimumSize:
-                                          const Size.fromHeight(52),
+                                      minimumSize: const Size.fromHeight(52),
                                     ),
                                   ),
                                   const SizedBox(height: 8),
                                   TextButton(
                                     onPressed: !_loading
                                         ? () => setState(
-                                              () =>
-                                                  _registerMode =
-                                                      !_registerMode,
-                                            )
+                                            () =>
+                                                _registerMode = !_registerMode,
+                                          )
                                         : null,
                                     child: Text(
                                       _registerMode
                                           ? 'Já tenho conta'
                                           : 'Criar uma conta nova',
                                       style: const TextStyle(
-                                          color: PulseColors.accent),
+                                        color: PulseColors.accent,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -405,9 +399,9 @@ class _MissingConfigBanner extends StatelessWidget {
             child: Text(
               'Defina SUPABASE_URL e SUPABASE_ANON_KEY com --dart-define para habilitar autenticação.',
               style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                    height: 1.35,
-                    color: PulseColors.textSecondary,
-                  ),
+                height: 1.35,
+                color: PulseColors.textSecondary,
+              ),
             ),
           ),
         ],
@@ -437,10 +431,10 @@ class _SecretKeyBanner extends StatelessWidget {
             child: Text(
               AppEnv.warningSecretKeyInFlutter,
               style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                    height: 1.35,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
+                height: 1.35,
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

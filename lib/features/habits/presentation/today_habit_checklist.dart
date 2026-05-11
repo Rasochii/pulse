@@ -41,15 +41,14 @@ class TodayHabitChecklist extends ConsumerWidget {
                 children: [
                   Text(
                     'Hoje você está livre',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium!
-                        .copyWith(color: cs.onSurface),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium!.copyWith(color: cs.onSurface),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     'Nenhum hábito agendado para este dia da semana. '
-                    'Crie hábitos na aba Hábitos ou ajuste os dias da máscara semanal.',
+                    'Crie hábitos na aba Hábitos ou ajuste os dias da semana.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 16),
@@ -73,15 +72,19 @@ class TodayHabitChecklist extends ConsumerWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: GlassPanel(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
                     InkWell(
                       borderRadius: BorderRadius.circular(12),
                       onTap: () async {
                         HapticFeedback.lightImpact();
-                        await ref.read(habitsRepositoryProvider).toggleCompletion(
+                        await ref
+                            .read(habitsRepositoryProvider)
+                            .toggleCompletion(
                               habit: r.habit,
                               day: DateTime.now(),
                             );
@@ -130,9 +133,7 @@ class TodayHabitChecklist extends ConsumerWidget {
                               Expanded(
                                 child: Text(
                                   r.habit.name,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall!
+                                  style: Theme.of(context).textTheme.titleSmall!
                                       .copyWith(
                                         color: cs.onSurface,
                                         decoration: r.done
@@ -146,11 +147,11 @@ class TodayHabitChecklist extends ConsumerWidget {
                           const SizedBox(height: 2),
                           Text(
                             'Série ${r.currentStreak} · taxa 30 d ${_pct(r.completionRate30d)}',
-                            style:
-                                Theme.of(context).textTheme.bodySmall!.copyWith(
-                                      fontSize: 11,
-                                      color: PulseColors.textSecondary,
-                                    ),
+                            style: Theme.of(context).textTheme.bodySmall!
+                                .copyWith(
+                                  fontSize: 11,
+                                  color: PulseColors.textSecondary,
+                                ),
                           ),
                         ],
                       ),
