@@ -10,7 +10,7 @@ final class PulseLocalNotifications {
 
   static Future<void> ensureInitialized() async {
     if (_initialized) return;
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings('@mipmap/pulse_logo');
     const ios = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
