@@ -245,6 +245,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   ),
                 ),
               ],
+              if (kRemindersSupported) ...[
               const SizedBox(height: 16),
               GlassPanel(
                 padding: const EdgeInsets.all(4),
@@ -269,6 +270,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   ),
                 ),
               ),
+              ],
               const SizedBox(height: 16),
               GlassPanel(
                 padding: const EdgeInsets.all(4),

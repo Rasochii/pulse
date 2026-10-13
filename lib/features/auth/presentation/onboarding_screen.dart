@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/notifications/notification_permission.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
@@ -98,8 +99,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     context.go(AppShellScreen.path);
   }
 
+  /// No navegador não há lembretes: o passo de permissão é pulado.
+  static const _stepCount = kRemindersSupported ? 4 : 3;
+
   Future<void> _next() async {
-    if (_index >= 3) return;
+    if (_index >= _stepCount - 1) return;
     await _pageController.nextPage(
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
@@ -151,19 +155,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       ),
                       const Spacer(),
                       Text(
-                        '${_index + 1}/4',
+                        '${_index + 1}/$_stepCount',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Row(
-                    children: List.generate(4, (i) {
+                    children: List.generate(_stepCount, (i) {
                       final active = i <= _index;
                       return Expanded(
                         child: Container(
                           height: 4,
-                          margin: EdgeInsets.only(right: i == 3 ? 0 : 6),
+                          margin: EdgeInsets.only(
+                            right: i == _stepCount - 1 ? 0 : 6,
+                          ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(99),
                             color: active
@@ -180,9 +186,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       physics: const BouncingScrollPhysics(),
                       controller: _pageController,
                       onPageChanged:
-                          (v) => setState(() => _index = v.clamp(0, 3)),
+                          (v) => setState(
+                            () => _index = v.clamp(0, _stepCount - 1),
+                          ),
                       children: [
                         _IntroSlide(onContinue: _next),
+                        if (kRemindersSupported)
                         _NotifySlide(
                           onAllow: () async {
                             await _requestNotify();

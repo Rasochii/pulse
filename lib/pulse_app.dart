@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -34,10 +35,16 @@ class _PulseAppState extends ConsumerState<PulseApp> {
 
       // O link de "esqueci a senha" abre o app já autenticado; falta só a nova senha.
       final auth = ref.read(authRepositoryProvider);
-      _authSubscription ??= auth.authStateChanges.listen((state) {
+      _authSubscription ??= auth.authStateChanges.listen((state) async {
         if (state.event == AuthChangeEvent.passwordRecovery) {
           auth.passwordRecoveryPending = true;
           router.go(ResetPasswordScreen.path);
+        }
+        // Sessão que chegou fora da tela de login (web: volta do Google depois de o app
+        // já ter aberto): os dados criados sem conta passam para ela.
+        if (state.event == AuthChangeEvent.signedIn && !auth.signInInProgress) {
+          await ref.read(adoptLocalDataProvider)();
+          if (mounted) ref.invalidate(authUidStreamProvider);
         }
       });
 
@@ -52,6 +59,9 @@ class _PulseAppState extends ConsumerState<PulseApp> {
           router.go(AppShellScreen.path);
         }
       }
+
+      // Deep links são do app instalado; na web a URL já é a navegação.
+      if (kIsWeb) return;
 
       try {
         final initial = await AppLinks().getInitialLink();

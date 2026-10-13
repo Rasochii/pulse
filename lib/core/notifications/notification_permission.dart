@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+/// Lembretes agendados dependem de notificações locais do sistema; no navegador não existem.
+const bool kRemindersSupported = !kIsWeb;
 
 bool _isAllowed(PermissionStatus s) =>
     s == PermissionStatus.granted ||
@@ -8,6 +12,7 @@ bool _isAllowed(PermissionStatus s) =>
 
 /// `true` se o sistema deixa o Pulse mostrar notificações.
 Future<bool> pulseNotificationsAllowed() async {
+  if (!kRemindersSupported) return true;
   try {
     return _isAllowed(await Permission.notification.status);
   } catch (_) {
@@ -18,6 +23,7 @@ Future<bool> pulseNotificationsAllowed() async {
 
 /// Pede a permissão; se o sistema não mostrar mais o pedido, abre os ajustes do app.
 Future<bool> enablePulseNotifications() async {
+  if (!kRemindersSupported) return true;
   try {
     if (_isAllowed(await Permission.notification.request())) return true;
     await openAppSettings();

@@ -598,6 +598,8 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
                   ),
               ],
             ),
+            // No navegador não há lembretes; os horários já salvos são preservados.
+            if (kRemindersSupported) ...[
             const SizedBox(height: 22),
             Text(
               'Lembretes no dia',
@@ -733,6 +735,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
                   ),
                 ],
               ),
+            ],
             ],
             Padding(
               padding: const EdgeInsets.only(top: 8),
