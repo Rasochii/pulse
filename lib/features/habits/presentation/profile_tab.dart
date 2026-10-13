@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/notifications/notification_permission.dart';
 import '../../../core/presentation/friendly_error.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
@@ -9,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_providers.dart';
 import '../../auth/domain/pulse_auth_failure.dart';
 import '../../auth/presentation/login_screen.dart';
+import '../../dashboard/presentation/dashboard_providers.dart';
 import '../../gamification/domain/achievement_defs.dart';
 import '../../gamification/domain/level_curve.dart';
 import '../../gamification/presentation/achievements_catalog_screen.dart';
@@ -107,8 +109,47 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
   }
 
-  /// Navega para o login no frame seguinte, sem usar [context] do ecrã que pode
-  /// já estar a ser desmontado após `signOut` / redirect.
+  Future<void> _editName(String? current) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _EditNameDialog(initial: current?.trim() ?? ''),
+    );
+    if (name == null || !mounted) return;
+    try {
+      await ref.read(authRepositoryProvider).updateDisplayName(name);
+      if (!mounted) return;
+      ref.invalidate(dashboardSnapshotProvider);
+      setState(() {});
+    } on PulseAuthFailure catch (e) {
+      if (mounted) {
+        showPulseSnackBar(context, e.message, kind: PulseSnackKind.error);
+      }
+    }
+  }
+
+  Future<void> _changePassword() async {
+    final password = await showDialog<String>(
+      context: context,
+      builder: (_) => const _ChangePasswordDialog(),
+    );
+    if (password == null || !mounted) return;
+    try {
+      await ref.read(authRepositoryProvider).updatePassword(password);
+      if (!mounted) return;
+      showPulseSnackBar(
+        context,
+        'Senha atualizada.',
+        kind: PulseSnackKind.success,
+      );
+    } on PulseAuthFailure catch (e) {
+      if (mounted) {
+        showPulseSnackBar(context, e.message, kind: PulseSnackKind.error);
+      }
+    }
+  }
+
+  /// Navega para o login no frame seguinte, sem usar [context] da tela que pode
+  /// já estar sendo desmontada após `signOut` / redirect.
   void _goToLoginAfterAuthChange(GoRouter router) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       router.go(LoginScreen.path);
@@ -119,16 +160,15 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authRepositoryProvider);
     final user = auth.currentUser;
-    final email = auth.canUseSupabase
-        ? (user?.email ?? '—')
-        : 'Modo local — dados só neste aparelho.';
+    final email = user != null
+        ? (user.email ?? '—')
+        : 'Sem conta — dados só neste aparelho.';
     final name = user?.userMetadata?['full_name'] as String?;
     final dark = ref.watch(themeDarkNotifierProvider);
     final gam = ref.watch(gamificationProfileProvider);
     final ach = ref.watch(unlockedAchievementsProvider);
     final cs = Theme.of(context).colorScheme;
-    final canDeleteRemote =
-        auth.canUseSupabase && auth.isClientKeyAccepted;
+    final canDeleteRemote = user != null && auth.isClientKeyAccepted;
 
     return Stack(
       children: [
@@ -143,19 +183,90 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
               const SizedBox(height: 16),
               GlassPanel(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      name?.trim().isNotEmpty == true ? name!.trim() : 'Conta',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name?.trim().isNotEmpty == true
+                                ? name!.trim()
+                                : 'Conta',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            email,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      email,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
+                    if (user != null)
+                      IconButton(
+                        tooltip: 'Editar nome',
+                        onPressed: () => _editName(name),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
                   ],
+                ),
+              ),
+              if (user == null && auth.canUseSupabase) ...[
+                const SizedBox(height: 16),
+                GlassPanel(
+                  padding: const EdgeInsets.all(4),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.cloud_upload_outlined,
+                      color: PulseColors.accent,
+                    ),
+                    title: const Text('Criar conta ou entrar'),
+                    subtitle: const Text(
+                      'Para ter backup e usar em mais de um aparelho. '
+                      'O que você já registrou vai junto.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () =>
+                        ref.read(goRouterProvider).go(LoginScreen.path),
+                  ),
+                ),
+              ],
+              if (auth.hasPasswordLogin) ...[
+                const SizedBox(height: 16),
+                GlassPanel(
+                  padding: const EdgeInsets.all(4),
+                  child: ListTile(
+                    leading:
+                        Icon(Icons.lock_outline_rounded, color: PulseColors.accent),
+                    title: const Text('Trocar senha'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: _changePassword,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              GlassPanel(
+                padding: const EdgeInsets.all(4),
+                child: NotificationPermissionBuilder(
+                  builder: (context, allowed, enable) => ListTile(
+                    leading: Icon(
+                      allowed
+                          ? Icons.notifications_active_outlined
+                          : Icons.notifications_off_outlined,
+                      color: allowed ? PulseColors.accent : cs.error,
+                    ),
+                    title: const Text('Lembretes'),
+                    subtitle: Text(
+                      allowed
+                          ? 'Notificações ativadas. Os horários ficam em cada hábito.'
+                          : 'Notificações bloqueadas — toque para ativar.',
+                    ),
+                    trailing: allowed
+                        ? null
+                        : const Icon(Icons.chevron_right_rounded),
+                    onTap: allowed ? null : enable,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -337,8 +448,8 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Excluir conta envia um pedido seguro ao servidor, remove os seus dados '
-                        'sincronizados e termina a sessão neste aparelho.',
+                        'Excluir a conta apaga seus dados na nuvem e neste aparelho '
+                        'e encerra a sessão. Não dá para desfazer.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: cs.onSurfaceVariant,
                             ),
@@ -360,7 +471,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   ),
                 ),
               ],
-              if (auth.canUseSupabase) ...[
+              if (user != null) ...[
                 const SizedBox(height: 20),
                 FilledButton.tonalIcon(
                   onPressed: _signOut,
@@ -385,7 +496,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                         const CircularProgressIndicator(color: PulseColors.accent),
                         const SizedBox(height: 16),
                         Text(
-                          'A excluir conta…',
+                          'Excluindo conta…',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -395,6 +506,121 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _EditNameDialog extends StatefulWidget {
+  const _EditNameDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_EditNameDialog> createState() => _EditNameDialogState();
+}
+
+class _EditNameDialogState extends State<_EditNameDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final valid = _controller.text.trim().isNotEmpty;
+    return AlertDialog(
+      title: const Text('Seu nome'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 60,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(labelText: 'Nome', counterText: ''),
+        onChanged: (_) => setState(() {}),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: valid
+              ? () => Navigator.of(context).pop(_controller.text.trim())
+              : null,
+          child: const Text('Salvar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog();
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+
+  @override
+  void dispose() {
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Trocar senha'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _password,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Nova senha'),
+                validator: (v) =>
+                    (v ?? '').length < 8 ? 'Mínimo 8 caracteres' : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _confirm,
+                obscureText: true,
+                decoration:
+                    const InputDecoration(labelText: 'Repita a nova senha'),
+                validator: (v) =>
+                    v != _password.text ? 'As senhas não coincidem' : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (!_formKey.currentState!.validate()) return;
+            Navigator.of(context).pop(_password.text);
+          },
+          child: const Text('Salvar'),
+        ),
       ],
     );
   }

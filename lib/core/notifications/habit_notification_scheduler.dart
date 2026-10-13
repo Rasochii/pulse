@@ -25,8 +25,8 @@ final class PulseHabitNotificationScheduler {
     if (_timezoneReady) return;
     tz_data.initializeTimeZones();
     try {
-      final name = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(name));
+      final info = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(info.identifier));
     } catch (e) {
       developer.log('Timezone fallback UTC: $e', name: 'PulseNotif');
       tz.setLocalLocation(tz.UTC);

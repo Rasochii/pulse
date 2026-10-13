@@ -6,7 +6,6 @@ import '../../../providers/app_providers.dart';
 import '../../habits/presentation/app_shell_screen.dart';
 import 'login_screen.dart';
 import 'onboarding_screen.dart';
-import '../data/onboarding_storage.dart';
 
 class SplashGate extends ConsumerStatefulWidget {
   const SplashGate({super.key});
@@ -41,7 +40,7 @@ class _SplashGateState extends ConsumerState<SplashGate> {
       return;
     }
 
-    final done = await isOnboardingDoneForUser(userId);
+    final done = await auth.isOnboardingDone(userId);
     if (!mounted) return;
     router.go(done ? AppShellScreen.path : OnboardingScreen.path);
   }

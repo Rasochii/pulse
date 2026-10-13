@@ -36,4 +36,15 @@ final class WellbeingRepository {
     );
     await syncOutbox?.enqueueWellbeingUpsert(log);
   }
+
+  Future<void> deleteCheckIn(
+    WellbeingLog log, {
+    SyncOutboxWriter? syncOutbox,
+  }) async {
+    await _db.deleteWellbeingLog(log.id);
+    await syncOutbox?.enqueueWellbeingDelete(
+      log: log,
+      deletedAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
 }

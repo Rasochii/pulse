@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +8,12 @@ import 'pulse_auth_failure.dart';
 
 /// Converte falhas da API/auth em texto legível em português.
 abstract final class AuthErrorMessages {
+  static const emailAlreadyRegistered =
+      'Este e-mail já tem uma conta. Entre com ele ou use "Esqueci a senha".';
+
+  static const _generic =
+      'Não foi possível concluir a operação. Tente novamente.';
+
   static String from(Object error) {
     if (error is PulseAuthFailure) {
       return error.message;
@@ -70,6 +77,14 @@ abstract final class AuthErrorMessages {
       case 'invalid_grant':
       case 'user_not_found':
         return 'E-mail ou senha incorretos.';
+      case 'user_already_exists':
+      case 'email_exists':
+        return emailAlreadyRegistered;
+      case 'same_password':
+        return 'A nova senha precisa ser diferente da atual.';
+      case 'reauthentication_needed':
+      case 'session_expired':
+        return 'Por segurança, saia da conta, entre de novo e repita a operação.';
       case 'email_not_confirmed':
         return 'Confirme o e-mail antes de entrar na conta — veja também na caixa de spam.';
       case 'bad_jwt':
@@ -104,9 +119,11 @@ abstract final class AuthErrorMessages {
       return 'E-mail ou senha incorretos.';
     }
 
-    return msg.isEmpty
-        ? 'Não foi possível concluir a operação. Tente novamente.'
-        : msg;
+    if (lower.contains('already registered')) return emailAlreadyRegistered;
+
+    // O texto do servidor vem em inglês: fora do debug, o usuário vê a mensagem genérica.
+    if (msg.isEmpty || !kDebugMode) return _generic;
+    return msg;
   }
 
   static bool _looksLikeInvalidCredentials(String s) =>

@@ -140,7 +140,7 @@ void main() {
         now: now,
         moodsLast7d: const [5, 4, 4],
       );
-      expect(list.map((e) => e.title), contains('Energia alta'));
+      expect(list.map((e) => e.title), contains('Humor em alta'));
     });
   });
 }

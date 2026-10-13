@@ -4,7 +4,11 @@ import 'package:intl/intl.dart';
 
 import '../../../core/presentation/friendly_error.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../providers/app_providers.dart';
+import '../../insights/presentation/insights_providers.dart';
+import 'wellbeing_providers.dart';
 import 'wellbeing_quick_sheet.dart';
 import 'wellbeing_summary_provider.dart';
 
@@ -60,7 +64,7 @@ class WellbeingHistoryScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Use o botão acima ou o FAB do Início para o primeiro check-in.',
+                      'Toque em "Registrar" para fazer o primeiro check-in.',
                       style: Theme.of(context).textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
@@ -98,13 +102,55 @@ class WellbeingHistoryScreen extends ConsumerWidget {
   }
 }
 
-class _LogTile extends StatelessWidget {
+class _LogTile extends ConsumerWidget {
   const _LogTile({required this.log});
 
   final WellbeingLog log;
 
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Apagar check-in?'),
+            content: const Text(
+              'O registro sai do histórico e das médias. '
+              'Esta ação não pode ser desfeita.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Apagar'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!ok) return;
+    try {
+      await ref.read(wellbeingRepositoryProvider).deleteCheckIn(
+            log,
+            syncOutbox: ref.read(syncOutboxWriterProvider),
+          );
+      ref.read(backgroundSyncProvider)();
+      ref.invalidate(insightsListProvider);
+      ref.invalidate(wellbeingUiSummaryProvider);
+    } catch (e) {
+      if (context.mounted) {
+        showPulseSnackBar(
+          context,
+          friendlyError(e, 'Não foi possível apagar o check-in.'),
+          kind: PulseSnackKind.error,
+        );
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dt = DateTime.fromMillisecondsSinceEpoch(log.loggedAtMs, isUtc: false);
     final dateStr = _historyDateFmt.format(dt);
     final timeStr = TimeOfDay.fromDateTime(dt).format(context);
@@ -123,6 +169,11 @@ class _LogTile extends StatelessWidget {
       child: ListTile(
         title: Text('Humor ${log.mood}/5 · Energia ${log.energy}/5'),
         subtitle: Text(subtitle.toString()),
+        trailing: IconButton(
+          tooltip: 'Apagar',
+          onPressed: () => _delete(context, ref),
+          icon: const Icon(Icons.delete_outline_rounded),
+        ),
       ),
     );
   }

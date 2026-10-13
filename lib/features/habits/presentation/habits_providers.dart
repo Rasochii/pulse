@@ -11,13 +11,27 @@ final habitsWatchProvider = StreamProvider.autoDispose<List<Habit>>((ref) {
   return ref.watch(habitsRepositoryProvider).watchHabits(uid);
 });
 
+/// Até quantos dias para trás o checklist deixa corrigir um dia esquecido.
+const kChecklistMaxDaysBack = 6;
+
+/// Dia mostrado no checklist, em dias antes de hoje (0 = hoje).
+final checklistDayOffsetProvider = StateProvider<int>((ref) => 0);
+
+DateTime checklistDayFor(int offset, DateTime now) =>
+    DateTime(now.year, now.month, now.day - offset);
+
+/// Hábitos do dia escolhido no checklist (hoje, por padrão).
 final todayHabitsProvider =
     FutureProvider.autoDispose<List<HabitTodayRow>>((ref) async {
   ref.watch(authUidStreamProvider);
   final uid = ref.watch(authUidStreamProvider).valueOrNull ??
       ref.watch(authRepositoryProvider).currentUserId;
   if (uid == null || uid.isEmpty) return [];
-  return ref.watch(habitsRepositoryProvider).todayRows(uid, DateTime.now());
+  final day = checklistDayFor(
+    ref.watch(checklistDayOffsetProvider),
+    DateTime.now(),
+  );
+  return ref.watch(habitsRepositoryProvider).todayRows(uid, day);
 });
 
 final habitMetricsProvider =

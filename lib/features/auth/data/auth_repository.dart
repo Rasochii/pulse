@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_env.dart';
 import '../domain/auth_error_messages.dart';
 import '../domain/pulse_auth_failure.dart';
+import 'onboarding_storage.dart';
 
 class AuthRepository {
   AuthRepository({GoogleSignIn? googleSignIn})
@@ -51,10 +53,84 @@ class AuthRepository {
   User? get currentUser =>
       canUseSupabase ? Supabase.instance.client.auth.currentUser : null;
 
-  /// Id da sessão Supabase ou [localUserId] no modo local; `null` = precisa de login.
-  String? get currentUserId => canUseSupabase ? currentUser?.id : localUserId;
+  /// A tela de login está concluindo a entrada (inclui passar os dados locais para a
+  /// conta). O router espera em vez de sair do login assim que a sessão aparece.
+  bool signInInProgress = false;
+
+  static const _guestKey = 'pulse_guest_mode';
+  static bool _guestChosen = false;
+
+  /// Lê a escolha "continuar sem conta" gravada no aparelho (chamar antes do `runApp`).
+  static Future<void> loadGuestMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    _guestChosen = prefs.getBool(_guestKey) ?? false;
+  }
+
+  Future<void> setGuestMode(bool enabled) async {
+    _guestChosen = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_guestKey, enabled);
+  }
+
+  /// Usando o app sem conta: tudo fica só neste aparelho, nada vai para a nuvem.
+  /// Vale por escolha do usuário ou quando o app roda sem Supabase.
+  bool get isGuest => currentUser == null && (!canUseSupabase || _guestChosen);
+
+  /// Id da sessão Supabase ou [localUserId] sem conta; `null` = precisa escolher (login).
+  String? get currentUserId =>
+      currentUser?.id ?? (isGuest ? localUserId : null);
 
   String? get _redirectUrl => kIsWeb ? null : authRedirectUrl;
+
+  /// A conta tem login por senha (contas só-Google não têm senha para trocar).
+  bool get hasPasswordLogin {
+    final meta = currentUser?.appMetadata;
+    if (meta == null) return false;
+    final providers = meta['providers'];
+    if (providers is List) return providers.contains('email');
+    return meta['provider'] == 'email';
+  }
+
+  /// Consultas ao servidor em andamento/concluídas, por usuário.
+  final _remoteOnboarding = <String, Future<bool>>{};
+
+  /// Onboarding feito neste aparelho ou, em instalação nova, já registrado na conta.
+  Future<bool> isOnboardingDone(String userId) async {
+    if (await isOnboardingDoneForUser(userId)) return true;
+    if (!canUseSupabase || userId != currentUser?.id) return false;
+    final done = await _remoteOnboarding.putIfAbsent(
+      userId,
+      () => _fetchRemoteOnboarding(userId),
+    );
+    if (done) await setOnboardingDoneForUser(userId);
+    return done;
+  }
+
+  Future<bool> _fetchRemoteOnboarding(String userId) async {
+    const timeout = Duration(seconds: 5);
+    try {
+      final client = Supabase.instance.client;
+      final profile = await client
+          .from('profiles')
+          .select('onboarding_completed_at')
+          .eq('id', userId)
+          .maybeSingle()
+          .timeout(timeout);
+      if (profile?['onboarding_completed_at'] != null) return true;
+      // Contas anteriores à tabela `profiles`: quem já tem hábito já passou pelo onboarding.
+      final habits = await client
+          .from('pulse_habits')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1)
+          .timeout(timeout);
+      return habits.isNotEmpty;
+    } catch (_) {
+      // Sem rede ou tabela ausente: vale só o aparelho; tenta de novo na próxima navegação.
+      _remoteOnboarding.remove(userId);
+      return false;
+    }
+  }
 
   void _rejectSecretKeyIfNeeded() {
     if (!AppEnv.hasSupabase) return;
@@ -95,12 +171,17 @@ class AuthRepository {
     if (!canUseSupabase) throw PulseAuthFailure.supabaseMissing();
     _rejectSecretKeyIfNeeded();
     try {
-      await Supabase.instance.client.auth.signUp(
+      final res = await Supabase.instance.client.auth.signUp(
         email: email.trim(),
         password: password,
         emailRedirectTo: _redirectUrl,
         data: displayName == null ? null : {'full_name': displayName},
       );
+      // Com confirmação de e-mail ligada, e-mail já cadastrado volta como "sucesso"
+      // sem sessão e sem identidades — nenhum e-mail é enviado.
+      if (res.session == null && (res.user?.identities?.isEmpty ?? false)) {
+        throw PulseAuthFailure(AuthErrorMessages.emailAlreadyRegistered);
+      }
     } on PulseAuthFailure {
       rethrow;
     } catch (e) {
@@ -132,6 +213,21 @@ class AuthRepository {
         UserAttributes(password: newPassword),
       );
       passwordRecoveryPending = false;
+    } on PulseAuthFailure {
+      rethrow;
+    } catch (e) {
+      throw PulseAuthFailure(AuthErrorMessages.from(e));
+    }
+  }
+
+  /// Nome mostrado no perfil e na saudação (`full_name` nos metadados da conta).
+  Future<void> updateDisplayName(String name) async {
+    if (!canUseSupabase) throw PulseAuthFailure.supabaseMissing();
+    _rejectSecretKeyIfNeeded();
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: {'full_name': name.trim()}),
+      );
     } on PulseAuthFailure {
       rethrow;
     } catch (e) {
@@ -190,6 +286,8 @@ class AuthRepository {
 
   Future<void> signOut() async {
     passwordRecoveryPending = false;
+    // Sair leva ao login; "continuar sem conta" volta a ser uma escolha explícita.
+    await setGuestMode(false);
     try {
       if (await _googleSignIn.isSignedIn()) {
         await _googleSignIn.signOut();

@@ -50,10 +50,15 @@ final syncWatermarkStoreProvider = Provider<SyncWatermarkStore>((ref) {
   return SyncWatermarkStore();
 });
 
-/// `null` no modo local (sem Supabase): não há para onde enviar, então nada é enfileirado.
+/// `null` sem Supabase. Com Supabase mas sem conta, o writer existe e não enfileira nada:
+/// o que é criado sem conta fica só no aparelho.
 final syncOutboxWriterProvider = Provider<SyncOutboxWriter?>((ref) {
-  if (!ref.watch(authRepositoryProvider).canUseSupabase) return null;
-  return SyncOutboxWriter(ref.watch(pulseDatabaseProvider));
+  final auth = ref.watch(authRepositoryProvider);
+  if (!auth.canUseSupabase) return null;
+  return SyncOutboxWriter(
+    ref.watch(pulseDatabaseProvider),
+    isEnabled: () => auth.currentUser != null,
+  );
 });
 
 final pulseSyncEngineProvider = Provider<PulseSyncEngine>((ref) {

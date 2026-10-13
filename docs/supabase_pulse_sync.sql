@@ -39,7 +39,10 @@ create table if not exists public.pulse_wellbeing_logs (
   logged_at_ms bigint not null,
   mood smallint not null,
   energy smallint not null,
-  note text
+  note text,
+  -- Carimbo da última alteração (marca d'água do pull) e tombstone de exclusão.
+  updated_at_ms bigint not null default 0,
+  deleted_at_ms bigint
 );
 
 -- Uma linha por usuário: XP, nível e conquistas (`{"chave": unlocked_at_ms}`).
@@ -63,6 +66,8 @@ create index if not exists pulse_habit_completions_updated_idx
   on public.pulse_habit_completions (updated_at_ms);
 create index if not exists pulse_wellbeing_logs_user_logged_idx
   on public.pulse_wellbeing_logs (user_id, logged_at_ms);
+create index if not exists pulse_wellbeing_logs_user_updated_idx
+  on public.pulse_wellbeing_logs (user_id, updated_at_ms);
 
 -- Ligue RLS antes de usar em produção:
 

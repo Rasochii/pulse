@@ -24,12 +24,33 @@ class InsightsTab extends ConsumerWidget {
               Center(child: Text(friendlyError(e, 'Insights indisponíveis no momento.'))),
           data: (list) {
             if (list.isEmpty) {
-              return const Center(child: Text('Sem insights por enquanto.'));
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Text(
+                    'Sem insights por enquanto. Marque seus hábitos por alguns '
+                    'dias e os padrões aparecem aqui.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
             }
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-              itemCount: list.length + 1,
+              itemCount: list.length + 2,
               itemBuilder: (context, i) {
+                if (i == list.length + 1) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'O Pulse é uma ferramenta de organização pessoal. As dicas '
+                      'são gerais e não substituem orientação médica ou psicológica.',
+                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                            color: PulseColors.textSecondary,
+                          ),
+                    ),
+                  );
+                }
                 if (i == 0) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 14),

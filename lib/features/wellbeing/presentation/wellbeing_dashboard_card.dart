@@ -149,6 +149,13 @@ class WellbeingDashboardCard extends ConsumerWidget {
                               color: cs.onSurfaceVariant,
                             ),
                       ),
+                      if (s.correlationLine != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          s.correlationLine!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ],
                   ),
                 ),

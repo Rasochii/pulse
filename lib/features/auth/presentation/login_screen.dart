@@ -9,6 +9,8 @@ import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_providers.dart';
+import '../data/auth_repository.dart';
+import '../data/onboarding_storage.dart';
 import '../domain/auth_error_messages.dart';
 import '../domain/pulse_auth_failure.dart';
 import '../../habits/presentation/app_shell_screen.dart';
@@ -40,10 +42,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  /// Entrou numa conta: o que foi criado sem conta neste aparelho passa para ela
+  /// e sobe no próximo sync.
+  Future<void> _afterSignIn() async {
+    final auth = ref.read(authRepositoryProvider);
+    final uid = auth.currentUser?.id;
+    if (uid == null) return;
+    const local = AuthRepository.localUserId;
+    try {
+      final moved = await ref
+          .read(pulseDatabaseProvider)
+          .reassignUserData(from: local, to: uid);
+      if (moved) {
+        await ref.read(syncOutboxWriterProvider)?.enqueueAllForUser(uid);
+      }
+      if (await isOnboardingDoneForUser(local)) {
+        await setOnboardingDoneForUser(uid);
+        await clearOnboardingForUser(local);
+      }
+    } catch (_) {
+      // O login não deve falhar por causa da migração; os dados locais continuam no aparelho.
+    }
+    await auth.setGuestMode(false);
+  }
+
+  Future<void> _continueWithoutAccount() async {
+    HapticFeedback.lightImpact();
+    await ref.read(authRepositoryProvider).setGuestMode(true);
+    ref.invalidate(authUidStreamProvider);
+    if (!mounted) return;
+    context.go(AppShellScreen.path);
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final auth = ref.read(authRepositoryProvider);
     setState(() => _loading = true);
+    auth.signInInProgress = true;
     HapticFeedback.lightImpact();
     try {
       if (_registerMode) {
@@ -68,6 +103,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           password: _password.text,
         );
       }
+      await _afterSignIn();
       if (!mounted) return;
       context.go(AppShellScreen.path);
     } on PulseAuthFailure catch (e) {
@@ -81,6 +117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         kind: PulseSnackKind.error,
       );
     } finally {
+      auth.signInInProgress = false;
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -88,9 +125,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _google() async {
     final auth = ref.read(authRepositoryProvider);
     setState(() => _loading = true);
+    auth.signInInProgress = true;
     HapticFeedback.lightImpact();
     try {
       await auth.signInWithGoogle();
+      await _afterSignIn();
       if (!mounted) return;
       context.go(AppShellScreen.path);
     } on PulseAuthCancelled {
@@ -106,6 +145,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         kind: PulseSnackKind.error,
       );
     } finally {
+      auth.signInInProgress = false;
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -161,7 +201,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const SizedBox(height: 12),
+                          // Já usando sem conta: o login é opcional, dá para voltar.
+                          if (auth.isGuest)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: IconButton(
+                                tooltip: 'Voltar',
+                                onPressed: _loading
+                                    ? null
+                                    : () => context.go(AppShellScreen.path),
+                                icon: const Icon(Icons.arrow_back_rounded),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 12),
                           Text(
                                 _registerMode ? 'Criar conta' : 'Bem-vindo',
                                 style: Theme.of(
@@ -341,6 +394,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                             ),
                           ),
+                          if (auth.isGuest) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              'Ao entrar, os hábitos e registros deste aparelho '
+                              'passam para a sua conta.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall!
+                                  .copyWith(color: PulseColors.textSecondary),
+                            ),
+                          ] else ...[
+                            const SizedBox(height: 12),
+                            TextButton(
+                              onPressed:
+                                  _loading ? null : _continueWithoutAccount,
+                              child: const Text('Continuar sem conta'),
+                            ),
+                            Text(
+                              'Sem conta, seus dados ficam só neste aparelho: '
+                              'não há backup nem sincronização.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall!
+                                  .copyWith(color: PulseColors.textSecondary),
+                            ),
+                          ],
                           const SizedBox(height: 24),
                         ],
                       ),
