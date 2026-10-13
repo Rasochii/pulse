@@ -1,5 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'notification_permission.dart';
+
 final class PulseLocalNotifications {
   PulseLocalNotifications._();
 
@@ -9,7 +11,7 @@ final class PulseLocalNotifications {
   static bool _initialized = false;
 
   static Future<void> ensureInitialized() async {
-    if (_initialized) return;
+    if (_initialized || !kRemindersSupported) return;
     const android = AndroidInitializationSettings('@mipmap/pulse_logo');
     const ios = DarwinInitializationSettings(
       requestAlertPermission: false,

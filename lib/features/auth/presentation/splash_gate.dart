@@ -33,7 +33,13 @@ class _SplashGateState extends ConsumerState<SplashGate> {
       if (!mounted) return;
     }
 
-    // Modo local (sem Supabase): sempre há um usuário, o login é pulado.
+    // Voltou do login por redirecionamento (web) com dados criados sem conta.
+    if (auth.currentUser != null) {
+      await ref.read(adoptLocalDataProvider)();
+      if (!mounted) return;
+    }
+
+    // Sem conta (por escolha ou sem Supabase): há um usuário local, o login é pulado.
     final userId = auth.currentUserId;
     if (userId == null) {
       router.go(LoginScreen.path);

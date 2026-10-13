@@ -13,6 +13,7 @@ import '../core/sync/sync_outbox_writer.dart';
 import '../core/sync/sync_watermark_store.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/data/delete_account_coordinator.dart';
+import '../features/auth/data/onboarding_storage.dart';
 import '../features/gamification/data/gamification_coordinator.dart';
 import '../features/habits/data/habits_repository.dart';
 
@@ -137,7 +138,33 @@ final backgroundRescheduleProvider = Provider<void Function()>((ref) {
   };
 });
 
-final habitsRepositoryProvider = Provider<HabitsRepository>((ref) {
+/// Com sessão ativa, passa para a conta o que foi criado sem conta neste aparelho
+/// e enfileira para subir no próximo sync. Sem dados locais, não faz nada.
+final adoptLocalDataProvider = Provider<Future<void> Function()>((ref) {
+  return () async {
+    final auth = ref.read(authRepositoryProvider);
+    final uid = auth.currentUser?.id;
+    if (uid == null) return;
+    const local = AuthRepository.localUserId;
+    try {
+      final moved = await ref
+          .read(pulseDatabaseProvider)
+          .reassignUserData(from: local, to: uid);
+      if (moved) {
+        await ref.read(syncOutboxWriterProvider)?.enqueueAllForUser(uid);
+      }
+      if (await isOnboardingDoneForUser(local)) {
+        await setOnboardingDoneForUser(uid);
+        await clearOnboardingForUser(local);
+      }
+    } catch (_) {
+      // Entrar na conta não deve falhar por causa disso; os dados continuam no aparelho.
+    }
+    await auth.setGuestMode(false);
+  };
+});
+
+final habitsRepositoryProvider =Provider<HabitsRepository>((ref) {
   return HabitsRepository(
     ref.watch(pulseDatabaseProvider),
     syncOutbox: ref.watch(syncOutboxWriterProvider),

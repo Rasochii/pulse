@@ -126,7 +126,18 @@ class HabitXpClaims extends Table {
 )
 class PulseDatabase extends _$PulseDatabase {
   PulseDatabase([QueryExecutor? e])
-      : super(e ?? driftDatabase(name: 'pulse_db'));
+      : super(
+          e ??
+              driftDatabase(
+                name: 'pulse_db',
+                // Web: SQLite em WebAssembly, guardado no navegador. Os dois arquivos
+                // ficam em `web/` e acompanham as versões de `sqlite3` e `drift`.
+                web: DriftWebOptions(
+                  sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+                  driftWorker: Uri.parse('drift_worker.js'),
+                ),
+              ),
+        );
 
   @override
   int get schemaVersion => 5;

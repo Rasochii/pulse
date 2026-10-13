@@ -9,6 +9,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../database/app_database.dart';
 import '../utils/date_key.dart';
 import '../../features/habits/domain/habit_reminder_times_codec.dart';
+import 'notification_permission.dart';
 import 'pulse_local_notifications.dart';
 
 /// Agenda lembretes semanais por (hábito × dia da semana × horário) — Plano 7.
@@ -36,6 +37,7 @@ final class PulseHabitNotificationScheduler {
 
   /// Solicita permissões de notificação (Android 13+ / iOS).
   Future<void> requestPermissionsIfNeeded() async {
+    if (!kRemindersSupported) return;
     await Permission.notification.request();
     final ios = PulseLocalNotifications.plugin
         .resolvePlatformSpecificImplementation<
@@ -48,6 +50,7 @@ final class PulseHabitNotificationScheduler {
   }
 
   Future<void> cancelAllForPulse() async {
+    if (!kRemindersSupported) return;
     await PulseLocalNotifications.plugin.cancelAll();
   }
 
@@ -64,6 +67,7 @@ final class PulseHabitNotificationScheduler {
   }
 
   Future<void> rescheduleAll(String userId) {
+    if (!kRemindersSupported) return Future<void>.value();
     final next = _queue.catchError((_) {}).then((_) => _rescheduleAll(userId));
     _queue = next;
     return next;

@@ -10,23 +10,27 @@ import 'onboarding_storage.dart';
 
 class AuthRepository {
   AuthRepository({GoogleSignIn? googleSignIn})
-      : _googleSignIn = googleSignIn ??
-            GoogleSignIn(
-              serverClientId:
-                  AppEnv.hasGoogleSignIn ? AppEnv.googleWebClientId : null,
-              clientId: AppEnv.googleIosClientId.trim().isEmpty ||
-                      defaultTargetPlatform != TargetPlatform.iOS
-                  ? null
-                  : AppEnv.googleIosClientId,
-            );
+      : _googleSignInOverride = googleSignIn;
+
+  final GoogleSignIn? _googleSignInOverride;
+
+  /// Criado só no primeiro uso: na web o plugin se inicializa ao ser construído e
+  /// falha sem client ID — e lá o login com Google é por redirecionamento.
+  late final GoogleSignIn _googleSignIn = _googleSignInOverride ??
+      GoogleSignIn(
+        serverClientId:
+            AppEnv.hasGoogleSignIn ? AppEnv.googleWebClientId : null,
+        clientId: AppEnv.googleIosClientId.trim().isEmpty ||
+                defaultTargetPlatform != TargetPlatform.iOS
+            ? null
+            : AppEnv.googleIosClientId,
+      );
 
   /// Dono dos dados quando o app roda sem Supabase (modo local, sem conta).
   static const localUserId = 'local';
 
   /// Deep link de retorno dos e-mails do Supabase Auth (confirmação / redefinição de senha).
   static const authRedirectUrl = 'pulse://auth-callback';
-
-  final GoogleSignIn _googleSignIn;
 
   /// O app foi aberto por um link de redefinição e a nova senha ainda não foi definida.
   /// O router usa isto para não perder a tela de nova senha numa abertura a frio.
@@ -80,7 +84,9 @@ class AuthRepository {
   String? get currentUserId =>
       currentUser?.id ?? (isGuest ? localUserId : null);
 
-  String? get _redirectUrl => kIsWeb ? null : authRedirectUrl;
+  /// Para onde o Supabase devolve o usuário: o deep link no app, a própria página na web.
+  String get _redirectUrl =>
+      kIsWeb ? '${Uri.base.origin}${Uri.base.path}' : authRedirectUrl;
 
   /// A conta tem login por senha (contas só-Google não têm senha para trocar).
   bool get hasPasswordLogin {
@@ -245,6 +251,20 @@ class AuthRepository {
       );
     }
 
+    if (kIsWeb) {
+      // Na web o login é por redirecionamento: a página sai para o Google e volta já
+      // com a sessão. O fluxo desta tela termina aqui, sem mensagem.
+      try {
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: _redirectUrl,
+        );
+      } catch (e) {
+        throw PulseAuthFailure(AuthErrorMessages.from(e));
+      }
+      throw const PulseAuthCancelled();
+    }
+
     final GoogleSignInAccount? account;
     try {
       account = await _googleSignIn.signIn();
@@ -289,7 +309,7 @@ class AuthRepository {
     // Sair leva ao login; "continuar sem conta" volta a ser uma escolha explícita.
     await setGuestMode(false);
     try {
-      if (await _googleSignIn.isSignedIn()) {
+      if (!kIsWeb && await _googleSignIn.isSignedIn()) {
         await _googleSignIn.signOut();
       }
     } catch (_) {

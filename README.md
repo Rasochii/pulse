@@ -275,6 +275,24 @@ flutter build apk --release \
 
 <br/>
 
+## Versão web (PWA)
+
+O app roda no navegador e pode ser instalado como PWA. Diferenças em relação ao app instalado: **não há lembretes** e o login com Google é por redirecionamento.
+
+```bash
+flutter build web --release --base-href /pulse/ \
+  --dart-define=SUPABASE_URL=https://SEU_PROJETO.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=sua_chave_anon
+```
+
+O deploy no GitHub Pages é feito por [`.github/workflows/deploy-web.yml`](.github/workflows/deploy-web.yml) a cada push em `main`. Configure uma vez:
+
+- **Settings › Pages:** fonte "GitHub Actions".
+- **Settings › Secrets and variables › Actions:** variáveis `SUPABASE_URL` e `GOOGLE_WEB_CLIENT_ID` (opcional), segredo `SUPABASE_ANON_KEY`. Os valores ficam embutidos no JavaScript publicado, então use só a chave anon/publishable.
+- **Supabase › Authentication › URL Configuration:** adicione o endereço do Pages às Redirect URLs.
+
+`web/sqlite3.wasm` e `web/drift_worker.js` vêm das releases de [sqlite3.dart](https://github.com/simolus3/sqlite3.dart/releases) e [drift](https://github.com/simolus3/drift/releases); ao atualizar esses pacotes, baixe os arquivos das versões correspondentes.
+
 ## Testes e análise estática
 
 ```bash

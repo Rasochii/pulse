@@ -9,8 +9,6 @@ import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_providers.dart';
-import '../data/auth_repository.dart';
-import '../data/onboarding_storage.dart';
 import '../domain/auth_error_messages.dart';
 import '../domain/pulse_auth_failure.dart';
 import '../../habits/presentation/app_shell_screen.dart';
@@ -31,6 +29,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   bool _registerMode = false;
+  bool _showPassword = false;
 
   static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
@@ -44,27 +43,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// Entrou numa conta: o que foi criado sem conta neste aparelho passa para ela
   /// e sobe no próximo sync.
-  Future<void> _afterSignIn() async {
-    final auth = ref.read(authRepositoryProvider);
-    final uid = auth.currentUser?.id;
-    if (uid == null) return;
-    const local = AuthRepository.localUserId;
-    try {
-      final moved = await ref
-          .read(pulseDatabaseProvider)
-          .reassignUserData(from: local, to: uid);
-      if (moved) {
-        await ref.read(syncOutboxWriterProvider)?.enqueueAllForUser(uid);
-      }
-      if (await isOnboardingDoneForUser(local)) {
-        await setOnboardingDoneForUser(uid);
-        await clearOnboardingForUser(local);
-      }
-    } catch (_) {
-      // O login não deve falhar por causa da migração; os dados locais continuam no aparelho.
-    }
-    await auth.setGuestMode(false);
-  }
+  Future<void> _afterSignIn() => ref.read(adoptLocalDataProvider)();
 
   Future<void> _continueWithoutAccount() async {
     HapticFeedback.lightImpact();
@@ -272,9 +251,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   const SizedBox(height: 14),
                                   TextFormField(
                                     controller: _password,
-                                    obscureText: true,
-                                    decoration: const InputDecoration(
+                                    obscureText: !_showPassword,
+                                    decoration: InputDecoration(
                                       labelText: 'Senha',
+                                      suffixIcon: IconButton(
+                                        tooltip: _showPassword
+                                            ? 'Ocultar senha'
+                                            : 'Mostrar senha',
+                                        onPressed: () => setState(
+                                          () => _showPassword = !_showPassword,
+                                        ),
+                                        icon: Icon(
+                                          _showPassword
+                                              ? Icons.visibility_off_outlined
+                                              : Icons.visibility_outlined,
+                                        ),
+                                      ),
                                     ),
                                     validator: (v) {
                                       final s = v ?? '';
