@@ -1,7 +1,6 @@
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/data/auth_repository.dart';
-import '../../features/auth/data/onboarding_storage.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/reset_password_screen.dart';
 import '../../features/habits/presentation/app_shell_screen.dart';
@@ -25,12 +24,16 @@ GoRouter createAppRouter({
 
       if (loc == SplashGate.path) return null;
 
-      // Sem Supabase o app roda em modo local: `currentUserId` nunca é nulo e não há login.
+      // Sem conta (por escolha ou sem Supabase) `currentUserId` é o usuário local.
       final userId = authRepository.currentUserId;
 
       if (userId == null) {
         if (loc == LoginScreen.path) return null;
         return LoginScreen.path;
+      }
+
+      if (loc == LoginScreen.path && authRepository.signInInProgress) {
+        return null;
       }
 
       if (loc == ResetPasswordScreen.path) return null;
@@ -39,9 +42,13 @@ GoRouter createAppRouter({
         return ResetPasswordScreen.path;
       }
 
-      final onboardingDone = await isOnboardingDoneForUser(userId);
+      final onboardingDone = await authRepository.isOnboardingDone(userId);
 
       if (loc == LoginScreen.path) {
+        // Sem conta: o login fica acessível para criar ou entrar numa conta depois.
+        if (authRepository.isGuest && authRepository.canUseSupabase) {
+          return null;
+        }
         return onboardingDone
             ? AppShellScreen.path
             : OnboardingScreen.path;

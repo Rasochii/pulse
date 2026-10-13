@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +9,7 @@ import 'package:pulse/core/utils/date_key.dart';
 import 'package:pulse/features/gamification/data/gamification_coordinator.dart';
 import 'package:pulse/features/gamification/domain/achievement_defs.dart';
 import 'package:pulse/features/habits/data/habits_repository.dart';
+import 'package:pulse/features/wellbeing/data/wellbeing_repository.dart';
 
 void main() {
   late PulseDatabase db;
@@ -197,5 +200,103 @@ void main() {
     await db.upsertWellbeingLog(log(2));
     await db.upsertWellbeingLog(log(5));
     expect((await db.wellbeingLogsForUser('user')).single.mood, 5);
+  });
+
+  test('checklist de dia anterior: só hábitos que já existiam; marcar conta na série',
+      () async {
+    final yesterday = DateTime(today.year, today.month, today.day - 1);
+    final tenDaysAgo = today.subtract(const Duration(days: 10));
+    await db.insertHabit(
+      HabitsCompanion.insert(
+        id: 'antigo',
+        userId: 'user',
+        name: 'Antigo',
+        createdAtMs: tenDaysAgo.millisecondsSinceEpoch,
+        updatedAtMs: tenDaysAgo.millisecondsSinceEpoch,
+      ),
+    );
+    await createHabit(name: 'Novo');
+
+    final rows = await repo.todayRows('user', yesterday);
+    expect(rows.map((r) => r.habit.name), ['Antigo']);
+
+    final antigo = rows.single.habit;
+    await repo.toggleCompletion(habit: antigo, day: today);
+    expect((await repo.metricsFor(antigo)).currentStreak, 1);
+    await repo.toggleCompletion(habit: antigo, day: yesterday);
+    expect((await repo.metricsFor(antigo)).currentStreak, 2);
+    expect((await repo.todayRows('user', yesterday)).single.done, isTrue);
+  });
+
+  test('sem conta nada entra na fila; ao entrar, os dados passam para a conta',
+      () async {
+    var signedIn = false;
+    final outbox = SyncOutboxWriter(db, isEnabled: () => signedIn);
+    final guestRepo = HabitsRepository(db, syncOutbox: outbox);
+    await guestRepo.createHabit(userId: 'local', name: 'Ler');
+    final h = (await db.habitsForUser('local')).single;
+    await guestRepo.toggleCompletion(habit: h, day: today);
+    await WellbeingRepository(db).logCheckIn(
+      userId: 'local',
+      mood: 4,
+      energy: 4,
+      syncOutbox: outbox,
+    );
+    await db.upsertGamificationProfile(
+      userId: 'local',
+      totalXp: 40,
+      level: 1,
+      updatedAtMs: 1,
+    );
+    expect(await db.pendingOutbox(), isEmpty);
+
+    signedIn = true;
+    expect(await db.reassignUserData(from: 'local', to: 'conta'), isTrue);
+    await outbox.enqueueAllForUser('conta');
+
+    expect(await db.habitsForUser('local'), isEmpty);
+    final moved = (await db.habitsForUser('conta')).single;
+    expect(moved.updatedAtMs, greaterThan(h.updatedAtMs - 1));
+    expect(await db.hasCompletion(moved.id, todayKey), isTrue);
+    expect((await db.wellbeingLogsForUser('conta')).length, 1);
+    expect((await db.gamificationForUser('conta'))!.totalXp, 40);
+    expect(await db.gamificationForUser('local'), isNull);
+
+    final entities = (await db.pendingOutbox()).map((o) => o.entity).toList();
+    expect(
+      entities,
+      containsAll(
+        ['habit', 'habit_completion', 'wellbeing_log', 'gamification'],
+      ),
+    );
+
+    // Nada para passar numa segunda vez.
+    expect(await db.reassignUserData(from: 'local', to: 'conta'), isFalse);
+  });
+
+  test('apagar check-in remove do aparelho e enfileira tombstone sem a nota',
+      () async {
+    final wellbeing = WellbeingRepository(db);
+    final outbox = SyncOutboxWriter(db);
+    await wellbeing.logCheckIn(
+      userId: 'user',
+      mood: 4,
+      energy: 2,
+      note: 'dia cheio',
+      syncOutbox: outbox,
+    );
+    final log = (await db.wellbeingLogsForUser('user')).single;
+
+    await wellbeing.deleteCheckIn(log, syncOutbox: outbox);
+
+    expect(await db.wellbeingLogsForUser('user'), isEmpty);
+    final tombstone = (await db.pendingOutbox())
+        .where((o) => o.entity == 'wellbeing_log' && o.op == 'delete')
+        .single;
+    final payload = jsonDecode(tombstone.payloadJson) as Map<String, dynamic>;
+    expect(payload['id'], log.id);
+    expect(payload['note'], isNull);
+    expect(payload['deleted_at_ms'], isNotNull);
+    expect(payload['updated_at_ms'], payload['deleted_at_ms']);
   });
 }

@@ -125,7 +125,7 @@ abstract final class InsightEngine {
       if (avg >= 4) {
         out.add(
           InsightVm(
-            title: 'Energia alta',
+            title: 'Humor em alta',
             detail:
                 'Seus check-ins de humor recentes estão bons. '
                 'É um bom momento para encaixar hábitos que você vinha empurrando com a barriga.',
@@ -138,7 +138,8 @@ abstract final class InsightEngine {
             title: 'Fase leve',
             detail:
                 'Quando o humor anda baixo, combinam metas bem menores por alguns dias. '
-                'Fechar um único hábito já conta como vitória.',
+                'Fechar um único hábito já conta como vitória. '
+                'Se essa fase se prolongar, vale conversar com um profissional de saúde.',
             sentimentBias: -0.2,
           ),
         );

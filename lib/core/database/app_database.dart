@@ -481,6 +481,9 @@ class PulseDatabase extends _$PulseDatabase {
   Future<void> upsertWellbeingLog(WellbeingLogsCompanion row) =>
       into(wellbeingLogs).insertOnConflictUpdate(row);
 
+  Future<void> deleteWellbeingLog(String id) =>
+      (delete(wellbeingLogs)..where((t) => t.id.equals(id))).go();
+
   Future<List<WellbeingLog>> wellbeingLogsForUser(
     String userId, {
     int limit = 60,
@@ -492,7 +495,63 @@ class PulseDatabase extends _$PulseDatabase {
         .get();
   }
 
-  /// Apaga dados locais do utilizador e a fila de sync — ex.: exclusão de conta.
+  /// Passa os dados de [from] para [to] — ex.: o que foi criado sem conta para a conta
+  /// em que a pessoa acabou de entrar. Retorna `true` se havia algo para passar.
+  Future<bool> reassignUserData({required String from, required String to}) {
+    return transaction(() async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final vFrom = Variable.withString(from);
+      final vTo = Variable.withString(to);
+
+      // Carimbo novo: os outros aparelhos da conta só baixam o que mudou depois da marca d'água.
+      final movedHabits = await customUpdate(
+        'UPDATE habits SET user_id = ?, updated_at_ms = ? WHERE user_id = ?',
+        variables: [vTo, Variable.withInt(now), vFrom],
+        updates: {habits},
+      );
+      final movedLogs = await customUpdate(
+        'UPDATE wellbeing_logs SET user_id = ? WHERE user_id = ?',
+        variables: [vTo, vFrom],
+        updates: {wellbeingLogs},
+      );
+      await customUpdate(
+        'UPDATE OR IGNORE habit_xp_claims SET user_id = ? WHERE user_id = ?',
+        variables: [vTo, vFrom],
+        updates: {habitXpClaims},
+      );
+      await customUpdate(
+        'UPDATE OR IGNORE user_achievement_unlocks SET user_id = ? '
+        'WHERE user_id = ?',
+        variables: [vTo, vFrom],
+        updates: {userAchievementUnlocks},
+      );
+
+      // XP: fica o maior dos dois, como no sync entre aparelhos.
+      final source = await gamificationForUser(from);
+      final target = await gamificationForUser(to);
+      if (source != null && source.totalXp > (target?.totalXp ?? -1)) {
+        await upsertGamificationProfile(
+          userId: to,
+          totalXp: source.totalXp,
+          level: source.level,
+          updatedAtMs: now,
+        );
+      }
+
+      // Sobras que colidiram com linhas já existentes da conta.
+      await (delete(habitXpClaims)..where((t) => t.userId.equals(from))).go();
+      await (delete(userAchievementUnlocks)
+            ..where((t) => t.userId.equals(from)))
+          .go();
+      await (delete(gamificationProfiles)
+            ..where((t) => t.userId.equals(from)))
+          .go();
+
+      return movedHabits > 0 || movedLogs > 0 || (source?.totalXp ?? 0) > 0;
+    });
+  }
+
+  /// Apaga dados locais do usuário e a fila de sync — ex.: exclusão de conta.
   ///
   /// Conclusões e XP claims saem explicitamente antes dos hábitos (não depende do cascade).
   Future<void> wipeAllLocalDataForUser(String userId) async {

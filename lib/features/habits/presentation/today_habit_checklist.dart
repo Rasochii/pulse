@@ -37,7 +37,8 @@ class TodayHabitChecklist extends ConsumerWidget {
     if (!_busyHabitIds.add(r.habit.id)) return;
     HapticFeedback.lightImpact();
     final repo = ref.read(habitsRepositoryProvider);
-    final today = DateTime.now();
+    final offset = ref.read(checklistDayOffsetProvider);
+    final day = checklistDayFor(offset, DateTime.now());
     try {
       if (r.hasNumericGoal) {
         final quantity = await showModalBottomSheet<double>(
@@ -45,12 +46,12 @@ class TodayHabitChecklist extends ConsumerWidget {
           isScrollControlled: true,
           useSafeArea: true,
           backgroundColor: Colors.transparent,
-          builder: (_) => _ProgressSheet(row: r),
+          builder: (_) => _ProgressSheet(row: r, isToday: offset == 0),
         );
         if (quantity == null) return;
-        await repo.setProgress(habit: r.habit, day: today, quantity: quantity);
+        await repo.setProgress(habit: r.habit, day: day, quantity: quantity);
       } else {
-        await repo.toggleCompletion(habit: r.habit, day: today);
+        await repo.toggleCompletion(habit: r.habit, day: day);
       }
     } catch (e) {
       if (context.mounted) {
@@ -95,7 +96,28 @@ class TodayHabitChecklist extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncRows = ref.watch(todayHabitsProvider);
+    final offset = ref.watch(checklistDayOffsetProvider);
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _DaySelector(
+          offset: offset,
+          onSelected: (v) =>
+              ref.read(checklistDayOffsetProvider.notifier).state = v,
+        ),
+        const SizedBox(height: 10),
+        _rows(context, ref, asyncRows, offset),
+      ],
+    );
+  }
+
+  Widget _rows(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<HabitTodayRow>> asyncRows,
+    int offset,
+  ) {
     return asyncRows.when(
       loading: () => const Center(
         child: Padding(
@@ -117,7 +139,9 @@ class TodayHabitChecklist extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Hoje você está livre',
+                    offset == 0
+                        ? 'Hoje você está livre'
+                        : 'Nada agendado neste dia',
                     style: Theme.of(
                       context,
                     ).textTheme.titleMedium!.copyWith(color: cs.onSurface),
@@ -261,11 +285,50 @@ class TodayHabitChecklist extends ConsumerWidget {
   }
 }
 
+/// Hoje e os dias anteriores em que ainda dá para corrigir um registro esquecido.
+class _DaySelector extends StatelessWidget {
+  const _DaySelector({required this.offset, required this.onSelected});
+
+  final int offset;
+  final ValueChanged<int> onSelected;
+
+  static const _weekdays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+  static String _label(int offset, DateTime now) {
+    if (offset == 0) return 'Hoje';
+    if (offset == 1) return 'Ontem';
+    final d = checklistDayFor(offset, now);
+    return '${_weekdays[d.weekday - 1]} ${d.day}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var i = 0; i <= kChecklistMaxDaysBack; i++)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(_label(i, now)),
+                selected: offset == i,
+                onSelected: (_) => onSelected(i),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Painel de progresso para hábitos com meta numérica; devolve a nova quantidade do dia.
 class _ProgressSheet extends StatefulWidget {
-  const _ProgressSheet({required this.row});
+  const _ProgressSheet({required this.row, required this.isToday});
 
   final HabitTodayRow row;
+  final bool isToday;
 
   @override
   State<_ProgressSheet> createState() => _ProgressSheetState();
@@ -347,7 +410,8 @@ class _ProgressSheetState extends State<_ProgressSheet> {
                         FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
                       ],
                       decoration: InputDecoration(
-                        labelText: 'Feito hoje',
+                        labelText:
+                            widget.isToday ? 'Feito hoje' : 'Feito no dia',
                         suffixText: unit == null || unit.isEmpty ? null : unit,
                       ),
                       onChanged: (_) => setState(() {}),

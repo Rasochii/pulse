@@ -141,7 +141,11 @@ class DashboardTab extends ConsumerWidget {
                       ),
                       const SizedBox(height: 22),
                       Text(
-                        'Checklist de hoje',
+                        switch (ref.watch(checklistDayOffsetProvider)) {
+                          0 => 'Checklist de hoje',
+                          1 => 'Checklist de ontem',
+                          _ => 'Checklist do dia',
+                        },
                         style: Theme.of(
                           context,
                         ).textTheme.titleMedium!.copyWith(color: cs.onSurface),

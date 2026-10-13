@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/presentation/friendly_error.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/notifications/notification_permission.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
@@ -329,7 +330,10 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Excluir hábito?'),
-            content: Text('«${h.name}» será removido da sua lista.'),
+            content: Text(
+              '«${h.name}» e todo o histórico dele saem da sua lista e das '
+              'suas estatísticas. Esta ação não pode ser desfeita.',
+            ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false),
                   child: const Text('Cancelar')),
@@ -627,6 +631,33 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
               },
             ),
             if (_remindersOn) ...[
+              NotificationPermissionBuilder(
+                builder: (context, allowed, enable) {
+                  if (allowed) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: GlassPanel(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                      borderRadius: 14,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'As notificações do Pulse estão bloqueadas neste '
+                            'aparelho. Enquanto estiverem assim, os lembretes '
+                            'não tocam.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          TextButton(
+                            onPressed: enable,
+                            child: const Text('Ativar notificações'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
               for (var i = 0; i < _reminderTimes.length; i++)
                 ListTile(
                   contentPadding: EdgeInsets.zero,

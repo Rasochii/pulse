@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_env.dart';
 import 'core/notifications/pulse_local_notifications.dart';
+import 'features/auth/data/auth_repository.dart';
 import 'pulse_app.dart';
 
 Future<void> main() async {
@@ -20,6 +21,8 @@ Future<void> main() async {
       ),
     );
   }
+
+  await AuthRepository.loadGuestMode();
 
   runApp(const ProviderScope(child: PulseApp()));
 }

@@ -107,7 +107,9 @@ final class PulseSyncEngine {
               'updated_at_ms': deletedAt,
               'deleted_at_ms': deletedAt,
             });
-          } else if (row.entity == 'wellbeing_log' && row.op == 'upsert') {
+          } else if (row.entity == 'wellbeing_log') {
+            // `upsert` e `delete` (tombstone) gravam a mesma linha.
+            map['updated_at_ms'] ??= map['logged_at_ms'];
             await client.from('pulse_wellbeing_logs').upsert(map);
           } else if (row.entity == 'gamification' && row.op == 'upsert') {
             await client.from('pulse_gamification').upsert(map);
@@ -235,7 +237,7 @@ final class PulseSyncEngine {
     final wm = await _watermarks.wellbeingWatermarkMs(userId);
     final rows = await _fetchSince(
       table: 'pulse_wellbeing_logs',
-      column: 'logged_at_ms',
+      column: 'updated_at_ms',
       watermark: wm,
       tieBreak: const ['id'],
       userId: userId,
@@ -244,8 +246,13 @@ final class PulseSyncEngine {
     for (final row in rows) {
       final id = row['id'] as String?;
       if (id == null) continue;
+      final updatedAt = _int(row['updated_at_ms']);
+      if (updatedAt > max) max = updatedAt;
+      if (row['deleted_at_ms'] != null) {
+        await _db.deleteWellbeingLog(id);
+        continue;
+      }
       final at = _int(row['logged_at_ms']);
-      if (at > max) max = at;
       await _db.upsertWellbeingLog(
         WellbeingLogsCompanion.insert(
           id: id,

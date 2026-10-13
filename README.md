@@ -178,7 +178,7 @@ O app funciona **sem** Supabase em **modo local**: não há login, os dados fica
 | `GOOGLE_WEB_CLIENT_ID` | Opcional. Client ID OAuth do tipo **Web** — habilita o botão "Continuar com Google" |
 | `GOOGLE_IOS_CLIENT_ID` | Opcional. Client ID OAuth do tipo **iOS** |
 
-> Os dados do modo local pertencem a um usuário fixo (`local`) e **não** migram para a conta ao configurar o Supabase depois.
+> Com Supabase configurado, a conta é opcional: "Continuar sem conta" no login usa o mesmo usuário fixo (`local`) e nada é enviado para a nuvem. Ao criar uma conta ou entrar (Perfil › "Criar conta ou entrar"), os dados do aparelho passam para a conta e sobem no sync seguinte.
 
 **Nunca** coloque a chave `service_role` / `sb_secret_` no app Flutter: o runtime rejeita essa configuração por segurança.
 
@@ -220,7 +220,7 @@ Tabelas remotas (esquema completo em [`docs/supabase_pulse_sync.sql`](docs/supab
 - `profiles` (marca o fim do onboarding)
 
 **Projeto Supabase novo:** execute `docs/supabase_pulse_sync.sql` uma vez no SQL Editor.
-**Projeto criado com uma versão anterior do script:** execute, em ordem, os arquivos de [`docs/migrations/`](docs/migrations/). Sem eles o sync falha (cor do hábito fora do limite de `int`, colunas de tombstone ausentes).
+**Projeto criado com uma versão anterior do script:** execute, em ordem, os arquivos de [`docs/migrations/`](docs/migrations/). Sem eles o sync falha (cor do hábito fora do limite de `int`, colunas de tombstone ausentes em conclusões e check-ins de humor).
 
 Limitações conhecidas:
 

@@ -40,16 +40,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         break;
       case PermissionStatus.denied:
         msg =
-            'Permissão negada neste momento. No simulador isso pode acontecer sem o alerta da Apple '
-            '(teste num iPhone físico ou ative em Configurações › Pulse › Notificações).';
+            'Sem permissão por enquanto. Você pode ativar os lembretes depois, na aba Perfil.';
         break;
       case PermissionStatus.restricted:
         msg =
-            'Notificações restritas neste dispositivo (políticas da Apple/perfil). Mais tarde você pode revisar nas Configurações.';
+            'As notificações estão restritas neste aparelho. Você pode rever isso depois, na aba Perfil.';
         break;
       case PermissionStatus.permanentlyDenied:
         msg =
-            'Permissão bloqueada. Abra Configurações › Pulse › Notificações e ative quando quiser.';
+            'Notificações bloqueadas. Para ativar, vá na aba Perfil › Lembretes.';
         break;
     }
     showPulseSnackBar(context, msg, kind: PulseSnackKind.neutral);
@@ -60,7 +59,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final auth = ref.read(authRepositoryProvider);
     if (!auth.canUseSupabase) return;
     try {
-      final userId = auth.currentUserId;
+      // Sem conta nada vai para a nuvem.
+      final userId = auth.currentUser?.id;
       if (userId == null) return;
       final now = DateTime.now().toUtc().toIso8601String();
       await Supabase.instance.client.from('profiles').upsert({
@@ -192,7 +192,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           onSkip: () {
                             showPulseSnackBar(
                               context,
-                              'Você pode ativar lembretes depois nas configurações.',
+                              'Você pode ativar os lembretes depois, na aba Perfil.',
                               kind: PulseSnackKind.neutral,
                             );
                             _next();

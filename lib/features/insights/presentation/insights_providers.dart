@@ -19,12 +19,17 @@ final insightsListProvider =
   final habits = await db.habitsForUser(uid);
   final ids = habits.map((e) => e.id).toList();
   final comps = await db.completionsForUserHabits(ids);
-  final moodsLogs = await db.wellbeingLogsForUser(uid, limit: 7);
-  final moodsLast = moodsLogs.map((e) => e.mood).toList();
+  final now = DateTime.now();
+  // Só os check-ins dos últimos 7 dias: registros antigos não descrevem a fase atual.
+  final since = now.subtract(const Duration(days: 7)).millisecondsSinceEpoch;
+  final moodsLast = (await db.wellbeingLogsForUser(uid))
+      .where((e) => e.loggedAtMs >= since)
+      .map((e) => e.mood)
+      .toList();
   return InsightEngine.generate(
     habits: habits,
     completions: comps,
-    now: DateTime.now(),
+    now: now,
     moodsLast7d: moodsLast.isEmpty ? null : moodsLast,
   );
 });

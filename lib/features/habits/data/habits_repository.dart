@@ -7,6 +7,7 @@ import '../../../core/utils/date_key.dart';
 import '../../dashboard/data/dashboard_builder.dart';
 import '../../dashboard/domain/dashboard_snapshot.dart';
 import '../domain/habit_metrics.dart';
+import '../domain/habit_schedule.dart';
 import 'habit_today_row.dart';
 
 typedef HabitDayHook =
@@ -56,6 +57,8 @@ class HabitsRepository {
     final key = dateKeyFromDateTime(day);
     final out = <HabitTodayRow>[];
     for (final h in scheduled) {
+      // Dia anterior à criação do hábito: ele ainda não existia.
+      if (!isHabitExpectedOn(h, day)) continue;
       final quantity = (await _db.completionRow(h.id, key))?.quantity ?? 0;
       final m = await metricsFor(h);
       out.add(
