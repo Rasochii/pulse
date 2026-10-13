@@ -1,6 +1,7 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/utils/date_key.dart';
 
+import '../../habits/domain/habit_schedule.dart';
 import '../domain/dashboard_snapshot.dart';
 
 abstract final class DashboardBuilder {
@@ -40,7 +41,7 @@ abstract final class DashboardBuilder {
     });
 
     final scheduledToday =
-        habits.where((h) => isWeekdayInBitmask(today.weekday, h.weekdaysBitmask)).toList();
+        habits.where((h) => isHabitExpectedOn(h, today)).toList();
     final todayExpected = scheduledToday.length;
     var todayDone = 0;
     for (final h in scheduledToday) {
@@ -63,7 +64,7 @@ abstract final class DashboardBuilder {
           continue;
         }
         final sched = habits
-            .where((h) => isWeekdayInBitmask(day.weekday, h.weekdaysBitmask))
+            .where((h) => isHabitExpectedOn(h, day))
             .toList();
         if (sched.isEmpty) {
           heatRows[wi][dow] = HeatTone.muted;
@@ -101,7 +102,7 @@ abstract final class DashboardBuilder {
     var probe = today.subtract(const Duration(days: 1));
     for (var i = 0; i < 400; i++) {
       final sched = habits
-          .where((h) => isWeekdayInBitmask(probe.weekday, h.weekdaysBitmask))
+          .where((h) => isHabitExpectedOn(h, probe))
           .toList();
       if (sched.isEmpty) {
         probe = probe.subtract(const Duration(days: 1));
@@ -132,7 +133,7 @@ abstract final class DashboardBuilder {
           start14.month,
           start14.day,
         ).add(Duration(days: d));
-        if (!isWeekdayInBitmask(day.weekday, h.weekdaysBitmask)) continue;
+        if (!isHabitExpectedOn(h, day)) continue;
         expected++;
         final k = dateKeyFromDateTime(day);
         if ((completionSet[k] ?? {}).contains(h.id)) hit++;

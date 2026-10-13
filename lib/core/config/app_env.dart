@@ -9,8 +9,23 @@ abstract final class AppEnv {
     defaultValue: '',
   );
 
+  /// Client ID OAuth do tipo **Web** (Google Cloud) — o mesmo configurado no provedor
+  /// Google do Supabase. Sem ele o Android não devolve `idToken`.
+  static const String googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue: '',
+  );
+
+  /// Client ID OAuth do tipo **iOS** (opcional se usar `GoogleService-Info.plist`).
+  static const String googleIosClientId = String.fromEnvironment(
+    'GOOGLE_IOS_CLIENT_ID',
+    defaultValue: '',
+  );
+
   static bool get hasSupabase =>
       supabaseUrl.trim().isNotEmpty && supabaseAnonKey.trim().isNotEmpty;
+
+  static bool get hasGoogleSignIn => googleWebClientId.trim().isNotEmpty;
 
   /// Chaves `sb_secret_...` são só para servidor — no app deve-se usar publishable ou anon JWT.
   static bool get usesSecretSupabaseKeyInClient =>

@@ -18,7 +18,7 @@ final class WellbeingUiBundle {
 final wellbeingUiSummaryProvider =
     FutureProvider.autoDispose<WellbeingUiBundle>((ref) async {
   final uid = ref.watch(authUidStreamProvider).valueOrNull ??
-      ref.watch(authRepositoryProvider).currentUser?.id;
+      ref.watch(authRepositoryProvider).currentUserId;
   final db = ref.watch(pulseDatabaseProvider);
 
   if (uid == null || uid.isEmpty) {

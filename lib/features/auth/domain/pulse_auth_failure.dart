@@ -16,3 +16,8 @@ class PulseAuthFailure implements Exception {
   @override
   String toString() => message;
 }
+
+/// O usuário fechou o fluxo de login (ex.: seletor de conta Google) — não é erro.
+class PulseAuthCancelled extends PulseAuthFailure {
+  const PulseAuthCancelled() : super('Login cancelado.');
+}

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
@@ -28,13 +29,19 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   Future<void> _signOut() async {
     final router = ref.read(goRouterProvider);
     try {
+      // Os lembretes são do usuário que está saindo.
+      try {
+        await ref
+            .read(pulseHabitNotificationSchedulerProvider)
+            .cancelAllForPulse();
+      } catch (_) {}
       await ref.read(authRepositoryProvider).signOut();
       _goToLoginAfterAuthChange(router);
     } catch (e) {
       if (mounted) {
         showPulseSnackBar(
           context,
-          'Não foi possível sair: $e',
+          friendlyError(e, 'Não foi possível sair.'),
           kind: PulseSnackKind.error,
         );
       }
@@ -53,7 +60,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
     if (ok != true || !mounted) return;
 
-    final uid = auth.currentUser?.id;
+    final uid = auth.currentUserId;
     if (uid == null || uid.isEmpty) {
       showPulseSnackBar(
         context,
@@ -89,7 +96,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       if (mounted) {
         showPulseSnackBar(
           context,
-          'Não foi possível excluir a conta: $e',
+          friendlyError(e, 'Não foi possível excluir a conta.'),
           kind: PulseSnackKind.error,
         );
       }
@@ -112,7 +119,9 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authRepositoryProvider);
     final user = auth.currentUser;
-    final email = user?.email ?? '—';
+    final email = auth.canUseSupabase
+        ? (user?.email ?? '—')
+        : 'Modo local — dados só neste aparelho.';
     final name = user?.userMetadata?['full_name'] as String?;
     final dark = ref.watch(themeDarkNotifierProvider);
     final gam = ref.watch(gamificationProfileProvider);
@@ -351,12 +360,14 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   ),
                 ),
               ],
-              const SizedBox(height: 20),
-              FilledButton.tonalIcon(
-                onPressed: auth.canUseSupabase ? _signOut : null,
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Sair'),
-              ),
+              if (auth.canUseSupabase) ...[
+                const SizedBox(height: 20),
+                FilledButton.tonalIcon(
+                  onPressed: _signOut,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Sair'),
+                ),
+              ],
             ],
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/theme/app_colors.dart';
 import 'wellbeing_quick_sheet.dart';
@@ -34,7 +35,7 @@ class WellbeingHistoryScreen extends ConsumerWidget {
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('Erro ao carregar: $e'),
+            child: Text(friendlyError(e, 'Não foi possível carregar o histórico.')),
           ),
         ),
         data: (bundle) {
@@ -76,7 +77,13 @@ class WellbeingHistoryScreen extends ConsumerWidget {
               await ref.read(wellbeingUiSummaryProvider.future);
             },
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+              // Padding explícito anula o do sistema: soma a barra de navegação nativa.
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                100 + MediaQuery.paddingOf(context).bottom,
+              ),
               itemCount: logs.length,
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, i) {

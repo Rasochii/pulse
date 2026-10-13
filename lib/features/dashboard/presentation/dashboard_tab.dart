@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/utils/date_key.dart';
@@ -88,7 +89,7 @@ class DashboardTab extends ConsumerWidget {
             error: (e, _) => ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(24),
-              children: [Text('Erro no dashboard: $e')],
+              children: [Text(friendlyError(e, 'Não foi possível carregar o início.'))],
             ),
             data: (dash) => CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),

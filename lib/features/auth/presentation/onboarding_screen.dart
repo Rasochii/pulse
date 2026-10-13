@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,21 +9,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../providers/app_providers.dart';
 import '../data/onboarding_storage.dart';
 import '../../habits/presentation/app_shell_screen.dart';
 
 /// Onboarding elegante — 4 passos (valor → lembretes → exemplo hábito → começar).
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   static const path = '/onboarding';
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
+  final _firstHabitName = TextEditingController();
   int _index = 0;
 
   Future<void> _requestNotify() async {
@@ -54,8 +57,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   /// Opcional — requer tabela `profiles` no Supabase + RLS.
   Future<void> _syncProfilesTable() async {
+    final auth = ref.read(authRepositoryProvider);
+    if (!auth.canUseSupabase) return;
     try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
+      final userId = auth.currentUserId;
       if (userId == null) return;
       final now = DateTime.now().toUtc().toIso8601String();
       await Supabase.instance.client.from('profiles').upsert({
@@ -68,10 +73,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  /// Cria o hábito digitado no passo 3 (todos os dias, sem lembrete); vazio = pula.
+  Future<void> _createFirstHabit(String userId) async {
+    final name = _firstHabitName.text.trim();
+    if (name.isEmpty) return;
+    try {
+      await ref
+          .read(habitsRepositoryProvider)
+          .createHabit(userId: userId, name: name);
+      _firstHabitName.clear();
+    } catch (_) {
+      // O onboarding não deve travar; o hábito pode ser criado depois na aba Hábitos.
+    }
+  }
+
   Future<void> _finish() async {
     HapticFeedback.mediumImpact();
-    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final userId = ref.read(authRepositoryProvider).currentUserId;
     if (userId == null) return;
+    await _createFirstHabit(userId);
     await setOnboardingDoneForUser(userId);
     await _syncProfilesTable();
     if (!mounted) return;
@@ -89,6 +109,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _firstHabitName.dispose();
     super.dispose();
   }
 
@@ -177,7 +198,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             _next();
                           },
                         ),
-                        _HabitPromptSlide(onContinue: _next),
+                        _HabitPromptSlide(
+                          nameController: _firstHabitName,
+                          onContinue: _next,
+                        ),
                         _ReadySlide(onStart: _finish),
                       ],
                     ),
@@ -282,8 +306,12 @@ class _NotifySlide extends StatelessWidget {
 }
 
 class _HabitPromptSlide extends StatelessWidget {
-  const _HabitPromptSlide({required this.onContinue});
+  const _HabitPromptSlide({
+    required this.nameController,
+    required this.onContinue,
+  });
 
+  final TextEditingController nameController;
   final VoidCallback onContinue;
 
   @override
@@ -293,9 +321,21 @@ class _HabitPromptSlide extends StatelessWidget {
       title: 'Seu primeiro hábito',
       subtitle:
           'Nomeie uma rotina pequena que você já consegue manter alguns dias. Exemplo: água, leitura, alongamento.',
+      extra: TextField(
+        controller: nameController,
+        maxLength: 200,
+        textCapitalization: TextCapitalization.sentences,
+        textInputAction: TextInputAction.done,
+        decoration: const InputDecoration(
+          labelText: 'Nome do hábito (opcional)',
+          hintText: 'Ex.: Beber água',
+          counterText: '',
+        ),
+      ),
       primaryLabel: 'Continuar',
       onPrimary: () async {
         HapticFeedback.lightImpact();
+        FocusManager.instance.primaryFocus?.unfocus();
         onContinue();
       },
     );
@@ -365,6 +405,7 @@ class _SlideShell extends StatelessWidget {
     required this.subtitle,
     required this.primaryLabel,
     required this.onPrimary,
+    this.extra,
     this.secondary,
     this.secondaryBelowPrimary = false,
   });
@@ -374,6 +415,8 @@ class _SlideShell extends StatelessWidget {
   final String subtitle;
   final String primaryLabel;
   final Future<void> Function() onPrimary;
+  /// Conteúdo opcional entre o texto e os botões (ex.: campo de entrada).
+  final Widget? extra;
   final Widget? secondary;
   /// Se true, botão principal fica primeiro (recomendado para telas de permissão).
   final bool secondaryBelowPrimary;
@@ -383,7 +426,7 @@ class _SlideShell extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
-        final bodyHeight = (h - 32).clamp(280.0, 900.0);
+        final bodyHeight = (h - 32).clamp(460.0, 900.0);
 
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -418,6 +461,10 @@ class _SlideShell extends StatelessWidget {
                     subtitle,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ).animate(delay: 90.ms).fadeIn(duration: 240.ms),
+                  if (extra != null) ...[
+                    const SizedBox(height: 20),
+                    extra!,
+                  ],
                   const Spacer(),
                   if (secondary != null && !secondaryBelowPrimary) ...[
                     secondary!,

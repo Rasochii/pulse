@@ -18,29 +18,34 @@ class HabitMetrics {
   final int expectedDaysLast30d;
 }
 
+DateTime _previousDay(DateTime d) => DateTime(d.year, d.month, d.day - 1);
+
+/// [createdAtMs] limita a janela de 30 dias aos dias em que o hábito já existia.
 HabitMetrics computeHabitMetrics({
   required int weekdaysBitmask,
   required List<int> completionDateKeys,
   required DateTime now,
+  int? createdAtMs,
 }) {
   final today = DateTime(now.year, now.month, now.day);
   final set = completionDateKeys.toSet();
+  final createdKey = createdAtMs == null
+      ? 0
+      : dateKeyFromDateTime(
+          DateTime.fromMillisecondsSinceEpoch(createdAtMs, isUtc: false),
+        );
 
   final current = _currentStreak(weekdaysBitmask, set, today);
   final best = _bestStreak(weekdaysBitmask, set);
 
-  final windowStart = today.subtract(const Duration(days: 29));
   var expected = 0;
   var completed = 0;
   for (var i = 0; i < 30; i++) {
-    final d = DateTime(
-      windowStart.year,
-      windowStart.month,
-      windowStart.day,
-    ).add(Duration(days: i));
+    final d = DateTime(today.year, today.month, today.day - i);
     if (!isWeekdayInBitmask(d.weekday, weekdaysBitmask)) continue;
-    expected++;
     final k = dateKeyFromDateTime(d);
+    if (k < createdKey) continue;
+    expected++;
     if (set.contains(k)) completed++;
   }
   final rate = expected == 0 ? 0.0 : completed / expected;
@@ -54,24 +59,14 @@ HabitMetrics computeHabitMetrics({
   );
 }
 
+/// Hoje ainda pendente não quebra a série: ela só zera quando um dia agendado
+/// **anterior** ficou sem conclusão.
 int _currentStreak(int bitmask, Set<int> completions, DateTime today) {
-  var streak = 0;
-  var d = DateTime(today.year, today.month, today.day);
-  for (var i = 0; i < 730; i++) {
-    final scheduled = isWeekdayInBitmask(d.weekday, bitmask);
-    final key = dateKeyFromDateTime(d);
-    if (scheduled) {
-      if (completions.contains(key)) {
-        streak++;
-        d = d.subtract(const Duration(days: 1));
-      } else {
-        break;
-      }
-    } else {
-      d = d.subtract(const Duration(days: 1));
-    }
-  }
-  return streak;
+  var end = DateTime(today.year, today.month, today.day);
+  final todayPending = isWeekdayInBitmask(end.weekday, bitmask) &&
+      !completions.contains(dateKeyFromDateTime(end));
+  if (todayPending) end = _previousDay(end);
+  return _streakEndingOn(end, bitmask, completions);
 }
 
 int _bestStreak(int bitmask, Set<int> completions) {
@@ -96,17 +91,9 @@ int _streakEndingOn(
   var d = DateTime(endDay.year, endDay.month, endDay.day);
   for (var i = 0; i < 730; i++) {
     final scheduled = isWeekdayInBitmask(d.weekday, bitmask);
-    final key = dateKeyFromDateTime(d);
-    if (scheduled) {
-      if (completions.contains(key)) {
-        streak++;
-        d = d.subtract(const Duration(days: 1));
-      } else {
-        break;
-      }
-    } else {
-      d = d.subtract(const Duration(days: 1));
-    }
+    if (scheduled && !completions.contains(dateKeyFromDateTime(d))) break;
+    if (scheduled) streak++;
+    d = _previousDay(d);
   }
   return streak;
 }

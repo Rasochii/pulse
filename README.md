@@ -34,6 +34,7 @@
 - [Supabase e variáveis de ambiente](#supabase-e-variáveis-de-ambiente)
 - [Sincronização e dados na nuvem](#sincronização-e-dados-na-nuvem)
 - [Excluir conta (Edge Function)](#excluir-conta-edge-function)
+- [Build de release (Android)](#build-de-release-android)
 - [Testes e análise estática](#testes-e-análise-estática)
 
 <br/>
@@ -68,7 +69,7 @@
     <td valign="top" align="center">
       <img src="https://img.shields.io/badge/XP-n%C3%ADveis_conquistas-22c55e?style=for-the-badge&labelColor=14532d"/><br/><br/>
       <b>Gamificação opcional</b><br/><br/>
-      <small>XP por conclusões, níveis, catálogo de conquistas — tudo persistido localmente no Drift.</small>
+      <small>XP por conclusões, níveis, catálogo de conquistas — persistido no Drift e sincronizado com a conta.</small>
     </td>
     <td valign="top" align="center">
       <img src="https://img.shields.io/badge/Conta-auth_privacidade-white?style=for-the-badge&labelColor=374151"/><br/><br/>
@@ -168,12 +169,16 @@ O `build_runner` gera código Drift (`*.g.dart`). Volte a executá-lo após alte
 
 ## Supabase e variáveis de ambiente
 
-O app funciona **sem** Supabase (fluxo de login mostra o estado “sem backend”). Para auth e sync na nuvem, defina no arranque:
+O app funciona **sem** Supabase em **modo local**: não há login, os dados ficam só no aparelho (SQLite) e nada é enviado para a nuvem. Para auth e sync, defina no arranque:
 
 | Variável | Uso |
 |:--|:--|
 | `SUPABASE_URL` | URL do projeto (ex.: `https://xxx.supabase.co`) |
 | `SUPABASE_ANON_KEY` | Chave **anon** ou **publishable** do projeto — a que o cliente pode expor |
+| `GOOGLE_WEB_CLIENT_ID` | Opcional. Client ID OAuth do tipo **Web** — habilita o botão "Continuar com Google" |
+| `GOOGLE_IOS_CLIENT_ID` | Opcional. Client ID OAuth do tipo **iOS** |
+
+> Os dados do modo local pertencem a um usuário fixo (`local`) e **não** migram para a conta ao configurar o Supabase depois.
 
 **Nunca** coloque a chave `service_role` / `sb_secret_` no app Flutter: o runtime rejeita essa configuração por segurança.
 
@@ -187,7 +192,14 @@ flutter run \
 
 Modelo JSON para copiar chaves: [`.vscode/flutter-dart-define.example.json`](.vscode/flutter-dart-define.example.json). Para depuração no VS Code, alinhe com [`.vscode/launch.example.json`](.vscode/launch.example.json).
 
-**Google Sign-In:** além das variáveis acima, configure o OAuth do Google no projeto Supabase e os `CFBundleURLSchemes` / `Android` client IDs conforme a documentação do Supabase e do plugin `google_sign_in`.
+**Google Sign-In** (o botão só aparece com `GOOGLE_WEB_CLIENT_ID` definido):
+
+1. No Google Cloud, crie três clientes OAuth: **Web**, **Android** (pacote `com.pulse.app.pulse` + SHA-1 do keystore) e **iOS**.
+2. No Supabase, em *Authentication → Providers → Google*, informe o client ID/secret do cliente **Web** (e adicione os IDs Android/iOS em *Authorized Client IDs*).
+3. Passe o client ID **Web** em `GOOGLE_WEB_CLIENT_ID` e o **iOS** em `GOOGLE_IOS_CLIENT_ID`.
+4. iOS: adicione o `REVERSED_CLIENT_ID` do cliente iOS em `CFBundleURLSchemes` no `ios/Runner/Info.plist`.
+
+**Links de e-mail (confirmação de conta e redefinição de senha):** o app registra o deep link `pulse://auth-callback`. Adicione esse endereço em *Authentication → URL Configuration → Redirect URLs* no Supabase; sem isso o link do e-mail não volta para o app.
 
 <br/>
 
@@ -195,16 +207,28 @@ Modelo JSON para copiar chaves: [`.vscode/flutter-dart-define.example.json`](.vs
 
 Com Supabase ativo, o motor em [`lib/core/sync/pulse_sync_engine.dart`](lib/core/sync/pulse_sync_engine.dart):
 
-- envia alterações pendentes a partir de uma **fila local** (`SyncOutbox`);
-- faz **pull incremental** usando marcas de tempo guardadas em `SharedPreferences` (`SyncWatermarkStore`).
+- envia alterações pendentes a partir de uma **fila local** (`SyncOutbox`) — ao abrir o app, ao voltar do segundo plano e logo após marcar um hábito, registrar humor ou salvar um hábito;
+- faz **pull incremental** paginado, usando marcas de tempo **por usuário** guardadas em `SharedPreferences` (`SyncWatermarkStore`);
+- propaga desmarcações com **tombstone** (`deleted_at_ms`) em vez de apagar a linha remota.
 
-Tabelas remotas esperadas (esquema alinhado com o cliente):
+Tabelas remotas (esquema completo em [`docs/supabase_pulse_sync.sql`](docs/supabase_pulse_sync.sql)):
 
 - `pulse_habits`
 - `pulse_habit_completions`
 - `pulse_wellbeing_logs`
+- `pulse_gamification` (XP, nível e conquistas)
+- `profiles` (marca o fim do onboarding)
 
-Gamificação e parte da lógica de insights permanecem **só no dispositivo**, salvo evoluções futuras do produto.
+**Projeto Supabase novo:** execute `docs/supabase_pulse_sync.sql` uma vez no SQL Editor.
+**Projeto criado com uma versão anterior do script:** execute, em ordem, os arquivos de [`docs/migrations/`](docs/migrations/). Sem eles o sync falha (cor do hábito fora do limite de `int`, colunas de tombstone ausentes).
+
+Limitações conhecidas:
+
+- A resolução de conflitos é *last-write-wins* pelo relógio de cada aparelho; um relógio muito atrasado pode fazer uma alteração ser ignorada.
+- O registro "XP já concedido hoje" é local: num aparelho novo é possível ganhar de novo, uma vez, o XP do dia.
+- Itens que o servidor rejeita 8 vezes saem da fila ativa e voltam a ser tentados na próxima abertura do app.
+
+A lógica de insights permanece **só no dispositivo**.
 
 <br/>
 
@@ -227,12 +251,38 @@ Garanta que os segredos da função incluem a URL do projeto e a service role co
 
 <br/>
 
+## Build de release (Android)
+
+Sem configuração, o release é assinado com a chave de **debug** (serve para testar, não para publicar). Para assinar de verdade:
+
+```bash
+keytool -genkey -v -keystore ~/pulse-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+Crie `android/key.properties` (já ignorado pelo Git):
+
+```properties
+storeFile=/caminho/para/pulse-upload.jks
+storePassword=...
+keyAlias=upload
+keyPassword=...
+```
+
+```bash
+flutter build apk --release \
+  --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
+```
+
+<br/>
+
 ## Testes e análise estática
 
 ```bash
 flutter analyze
 flutter test
 ```
+
+Os testes cobrem métricas de hábito (sequência, taxa de 30 dias), dashboard, curva de nível, lembretes, insights, resumo de bem-estar e o repositório de hábitos sobre um SQLite em memória (progresso da meta, XP, fila de sync). O motor de sync contra o Supabase não tem teste automatizado.
 
 <br/>
 

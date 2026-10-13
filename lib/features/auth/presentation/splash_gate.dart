@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/config/app_env.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_providers.dart';
 import '../../habits/presentation/app_shell_screen.dart';
@@ -28,24 +27,20 @@ class _SplashGateState extends ConsumerState<SplashGate> {
   Future<void> _route() async {
     if (!mounted) return;
     final router = ref.read(goRouterProvider);
-
-    if (!AppEnv.hasSupabase) {
-      // Resposta imediata em ambientes sem Supabase (tests / dev).
-      router.go(LoginScreen.path);
-      return;
-    }
-
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    if (!mounted) return;
-
     final auth = ref.read(authRepositoryProvider);
-    final session = auth.currentSession;
-    if (session == null) {
+
+    if (auth.canUseSupabase) {
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      if (!mounted) return;
+    }
+
+    // Modo local (sem Supabase): sempre há um usuário, o login é pulado.
+    final userId = auth.currentUserId;
+    if (userId == null) {
       router.go(LoginScreen.path);
       return;
     }
 
-    final userId = session.user.id;
     final done = await isOnboardingDoneForUser(userId);
     if (!mounted) return;
     router.go(done ? AppShellScreen.path : OnboardingScreen.path);

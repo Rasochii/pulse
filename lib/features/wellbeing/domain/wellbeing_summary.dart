@@ -1,5 +1,6 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/utils/date_key.dart';
+import '../../habits/domain/habit_schedule.dart';
 
 /// Resumo imutável para o cartão de bem-estar e o histórico.
 final class WellbeingUiSummary {
@@ -71,7 +72,7 @@ double? _completionRateForDay(
   Map<int, Set<String>> completionSet,
 ) {
   final sched = habits
-      .where((h) => isWeekdayInBitmask(day.weekday, h.weekdaysBitmask))
+      .where((h) => isHabitExpectedOn(h, day))
       .toList();
   if (sched.isEmpty) return null;
   final key = dateKeyFromDateTime(day);

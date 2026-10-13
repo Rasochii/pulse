@@ -25,7 +25,7 @@ final class DeleteAccountCoordinator {
     await _auth.deleteAccount();
     await _notifications.cancelAllForPulse();
     await _db.wipeAllLocalDataForUser(userId);
-    await _watermarks.clearAll();
+    await _watermarks.clearAll(userId);
     await clearOnboardingForUser(userId);
     await _auth.signOut();
   }

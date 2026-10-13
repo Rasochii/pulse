@@ -7,6 +7,13 @@ import '../utils/date_key.dart';
 
 part 'app_database.g.dart';
 
+/// Folga para comparar progresso (`quantity`) com a meta diária em ponto flutuante.
+const double kDailyTargetEpsilon = 1e-9;
+
+/// `true` quando [quantity] atinge a meta diária do hábito.
+bool isDailyTargetReached(double quantity, double dailyTarget) =>
+    quantity >= dailyTarget - kDailyTargetEpsilon;
+
 class Habits extends Table {
   TextColumn get id => text()();
   TextColumn get userId => text()();
@@ -122,10 +129,14 @@ class PulseDatabase extends _$PulseDatabase {
       : super(e ?? driftDatabase(name: 'pulse_db'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+        beforeOpen: (details) async {
+          // Sem isto o SQLite ignora os `onDelete: cascade` declarados nas tabelas.
+          await customStatement('PRAGMA foreign_keys = ON');
+        },
         onCreate: (m) async {
           await m.createAll();
         },
@@ -143,6 +154,16 @@ class PulseDatabase extends _$PulseDatabase {
           }
           if (from < 4) {
             await m.createTable(habitXpClaims);
+          }
+          if (from < 5) {
+            // v5: `quantity` passa a ser o progresso do dia e "concluído" = quantity >= meta.
+            // Conclusões antigas (sempre 1) sobem para a meta para o histórico continuar concluído.
+            await customStatement(
+              'UPDATE habit_completions SET quantity = '
+              '(SELECT daily_target FROM habits WHERE habits.id = habit_completions.habit_id) '
+              'WHERE quantity < '
+              '(SELECT daily_target FROM habits WHERE habits.id = habit_completions.habit_id)',
+            );
           }
         },
       );
@@ -209,31 +230,58 @@ class PulseDatabase extends _$PulseDatabase {
         .watch();
   }
 
-  Future<List<HabitCompletion>> completionsForHabit(String habitId) {
-    return (select(habitCompletions)
-          ..where((c) => c.habitId.equals(habitId))
-          ..orderBy([(c) => OrderingTerm.desc(c.dateKey)]))
-        .get();
+  /// Linhas em que o progresso do dia atingiu a meta do hábito (`quantity >= dailyTarget`).
+  Future<List<HabitCompletion>> _doneCompletions(Expression<bool> filter) {
+    final query = select(habitCompletions).join([
+      innerJoin(
+        habits,
+        habits.id.equalsExp(habitCompletions.habitId),
+        useColumns: false,
+      ),
+    ])
+      ..where(
+        filter &
+            habitCompletions.quantity.isBiggerOrEqual(
+              habits.dailyTarget - const Constant(kDailyTargetEpsilon),
+            ),
+      )
+      ..orderBy([OrderingTerm.desc(habitCompletions.dateKey)]);
+    return query.map((row) => row.readTable(habitCompletions)).get();
   }
 
+  /// Dias concluídos do hábito (meta atingida), mais recente primeiro.
+  Future<List<HabitCompletion>> completionsForHabit(String habitId) =>
+      _doneCompletions(habitCompletions.habitId.equals(habitId));
+
+  /// Conclusões (meta atingida) de vários hábitos.
   Future<List<HabitCompletion>> completionsForUserHabits(
     Iterable<String> habitIds,
   ) {
     if (habitIds.isEmpty) return Future.value([]);
+    return _doneCompletions(habitCompletions.habitId.isIn(habitIds.toList()));
+  }
+
+  /// Todas as linhas do hábito, incluindo progresso parcial.
+  Future<List<HabitCompletion>> progressRowsForHabit(String habitId) {
     return (select(habitCompletions)
-          ..where((c) => c.habitId.isIn(habitIds.toList())))
+          ..where((c) => c.habitId.equals(habitId)))
         .get();
   }
 
+  /// Linha crua do dia (pode ser progresso parcial).
   Future<HabitCompletion?> completionRow(String habitId, int dateKey) =>
       (select(habitCompletions)
             ..where((c) =>
                 c.habitId.equals(habitId) & c.dateKey.equals(dateKey)))
           .getSingleOrNull();
 
+  /// `true` se a meta do dia foi atingida.
   Future<bool> hasCompletion(String habitId, int dateKey) async {
-    final q = await completionRow(habitId, dateKey);
-    return q != null;
+    final rows = await _doneCompletions(
+      habitCompletions.habitId.equals(habitId) &
+          habitCompletions.dateKey.equals(dateKey),
+    );
+    return rows.isNotEmpty;
   }
 
   Future<void> setCompletion({
@@ -289,11 +337,27 @@ class PulseDatabase extends _$PulseDatabase {
     );
   }
 
-  Future<List<SyncOutboxData>> pendingOutbox({int limit = 50}) {
+  /// Itens a enviar, do mais antigo ao mais novo. Quem já foi rejeitado
+  /// [maxAttempts] vezes sai da fila ativa (ver [resetOutboxAttempts]).
+  Future<List<SyncOutboxData>> pendingOutbox({
+    int limit = 50,
+    int? maxAttempts,
+  }) {
     return (select(syncOutbox)
+          ..where(
+            (t) => maxAttempts == null
+                ? const Constant(true)
+                : t.attempts.isSmallerThanValue(maxAttempts),
+          )
           ..orderBy([(t) => OrderingTerm.asc(t.createdAtMs)])
           ..limit(limit))
         .get();
+  }
+
+  /// Dá nova chance aos itens que esgotaram as tentativas.
+  Future<void> resetOutboxAttempts() {
+    return (update(syncOutbox)..where((t) => t.attempts.isBiggerThanValue(0)))
+        .write(const SyncOutboxCompanion(attempts: Value(0)));
   }
 
   Future<void> deleteOutbox(String id) {
@@ -413,6 +477,10 @@ class PulseDatabase extends _$PulseDatabase {
     );
   }
 
+  /// Insere ou substitui um check-in vindo do servidor.
+  Future<void> upsertWellbeingLog(WellbeingLogsCompanion row) =>
+      into(wellbeingLogs).insertOnConflictUpdate(row);
+
   Future<List<WellbeingLog>> wellbeingLogsForUser(
     String userId, {
     int limit = 60,
@@ -426,9 +494,21 @@ class PulseDatabase extends _$PulseDatabase {
 
   /// Apaga dados locais do utilizador e a fila de sync — ex.: exclusão de conta.
   ///
-  /// Hábitos primeiro (FK em completions e xp_claims com `onDelete: cascade`).
+  /// Conclusões e XP claims saem explicitamente antes dos hábitos (não depende do cascade).
   Future<void> wipeAllLocalDataForUser(String userId) async {
     await transaction(() async {
+      final habitIds = await (selectOnly(habits)
+            ..addColumns([habits.id])
+            ..where(habits.userId.equals(userId)))
+          .map((row) => row.read(habits.id)!)
+          .get();
+      if (habitIds.isNotEmpty) {
+        await (delete(habitCompletions)
+              ..where((c) => c.habitId.isIn(habitIds)))
+            .go();
+      }
+      await (delete(habitXpClaims)..where((t) => t.userId.equals(userId)))
+          .go();
       await (delete(habits)..where((h) => h.userId.equals(userId))).go();
       await (delete(gamificationProfiles)
             ..where((t) => t.userId.equals(userId)))

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/theme/app_colors.dart';
@@ -43,7 +44,7 @@ class HabitsListTab extends ConsumerWidget {
           loading: () => const Center(
             child: CircularProgressIndicator(color: PulseColors.accent),
           ),
-          error: (e, _) => Center(child: Text('Erro: $e')),
+          error: (e, _) => Center(child: Text(friendlyError(e, 'Não foi possível carregar os hábitos.'))),
           data: (list) {
             if (list.isEmpty) {
               return Center(

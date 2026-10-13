@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
@@ -10,7 +11,7 @@ import 'wellbeing_providers.dart';
 import 'wellbeing_summary_provider.dart';
 
 Future<void> showWellbeingQuickSheet(BuildContext context, WidgetRef ref) async {
-  final uid = ref.read(authRepositoryProvider).currentUser?.id;
+  final uid = ref.read(authRepositoryProvider).currentUserId;
   if (uid == null || uid.isEmpty) {
     showPulseSnackBar(
       context,
@@ -23,6 +24,7 @@ Future<void> showWellbeingQuickSheet(BuildContext context, WidgetRef ref) async 
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.transparent,
     builder: (ctx) => _WellbeingBody(userId: uid),
   );
@@ -40,6 +42,7 @@ class _WellbeingBody extends ConsumerStatefulWidget {
 class _WellbeingBodyState extends ConsumerState<_WellbeingBody> {
   double _mood = 3;
   double _energy = 3;
+  bool _saving = false;
   final _note = TextEditingController();
 
   @override
@@ -54,9 +57,13 @@ class _WellbeingBodyState extends ConsumerState<_WellbeingBody> {
 
     return Padding(
       padding: EdgeInsets.only(bottom: inset),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: GlassPanel(
+      // SafeArea: o painel não pode ficar atrás da barra de navegação do sistema.
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.all(16),
+        // Rola quando o teclado deixa menos altura que o conteúdo.
+        child: SingleChildScrollView(
+          child: GlassPanel(
           padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -101,7 +108,11 @@ class _WellbeingBodyState extends ConsumerState<_WellbeingBody> {
               ),
               const SizedBox(height: 18),
               FilledButton(
-                onPressed: () async {
+                onPressed: _saving
+                    ? null
+                    : () async {
+                  // Evita check-in duplicado em toque duplo.
+                  setState(() => _saving = true);
                   try {
                     await ref.read(wellbeingRepositoryProvider).logCheckIn(
                           userId: widget.userId,
@@ -110,14 +121,16 @@ class _WellbeingBodyState extends ConsumerState<_WellbeingBody> {
                           note: _note.text,
                           syncOutbox: ref.read(syncOutboxWriterProvider),
                         );
+                    ref.read(backgroundSyncProvider)();
                     ref.invalidate(insightsListProvider);
                     ref.invalidate(wellbeingUiSummaryProvider);
                     if (context.mounted) Navigator.of(context).pop();
                   } catch (e) {
                     if (context.mounted) {
+                      setState(() => _saving = false);
                       showPulseSnackBar(
                         context,
-                        'Não foi possível salvar: $e',
+                        friendlyError(e, 'Não foi possível salvar o check-in.'),
                         kind: PulseSnackKind.error,
                       );
                     }
@@ -126,6 +139,7 @@ class _WellbeingBodyState extends ConsumerState<_WellbeingBody> {
                 child: const Text('Salvar check-in'),
               ),
             ],
+          ),
           ),
         ),
       ),
