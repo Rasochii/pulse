@@ -1,35 +1,43 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Marcos `updated_at_ms` remotos por tabela para pull incremental (LWW — Plano 8).
+/// Marcos remotos por tabela **e por usuário** para pull incremental (LWW — Plano 8).
 final class SyncWatermarkStore {
   static const _kHabits = 'pulse_sync_wm_habits_ms';
   static const _kCompletions = 'pulse_sync_wm_completions_ms';
+  static const _kWellbeing = 'pulse_sync_wm_wellbeing_ms';
 
   Future<SharedPreferences> _prefs() => SharedPreferences.getInstance();
 
-  Future<int> habitsWatermarkMs() async {
+  Future<int> _get(String key, String userId) async {
     final p = await _prefs();
-    return p.getInt(_kHabits) ?? 0;
+    return p.getInt('${key}_$userId') ?? 0;
   }
 
-  Future<void> setHabitsWatermarkMs(int ms) async {
+  Future<void> _set(String key, String userId, int ms) async {
     final p = await _prefs();
-    await p.setInt(_kHabits, ms);
+    await p.setInt('${key}_$userId', ms);
   }
 
-  Future<int> completionsWatermarkMs() async {
-    final p = await _prefs();
-    return p.getInt(_kCompletions) ?? 0;
-  }
+  Future<int> habitsWatermarkMs(String userId) => _get(_kHabits, userId);
 
-  Future<void> setCompletionsWatermarkMs(int ms) async {
-    final p = await _prefs();
-    await p.setInt(_kCompletions, ms);
-  }
+  Future<void> setHabitsWatermarkMs(String userId, int ms) =>
+      _set(_kHabits, userId, ms);
 
-  Future<void> clearAll() async {
+  Future<int> completionsWatermarkMs(String userId) =>
+      _get(_kCompletions, userId);
+
+  Future<void> setCompletionsWatermarkMs(String userId, int ms) =>
+      _set(_kCompletions, userId, ms);
+
+  Future<int> wellbeingWatermarkMs(String userId) => _get(_kWellbeing, userId);
+
+  Future<void> setWellbeingWatermarkMs(String userId, int ms) =>
+      _set(_kWellbeing, userId, ms);
+
+  Future<void> clearAll(String userId) async {
     final p = await _prefs();
-    await p.remove(_kHabits);
-    await p.remove(_kCompletions);
+    for (final key in [_kHabits, _kCompletions, _kWellbeing]) {
+      await p.remove('${key}_$userId');
+    }
   }
 }

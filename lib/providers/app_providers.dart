@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,10 +24,10 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 final authUidStreamProvider = StreamProvider.autoDispose<String?>((ref) {
   final repo = ref.watch(authRepositoryProvider);
   Stream<String?> gen() async* {
-    yield repo.currentUser?.id;
+    yield repo.currentUserId;
     if (!repo.canUseSupabase) return;
     await for (final _ in repo.authStateChanges) {
-      yield repo.currentUser?.id;
+      yield repo.currentUserId;
     }
   }
 
@@ -48,7 +50,9 @@ final syncWatermarkStoreProvider = Provider<SyncWatermarkStore>((ref) {
   return SyncWatermarkStore();
 });
 
-final syncOutboxWriterProvider = Provider<SyncOutboxWriter>((ref) {
+/// `null` no modo local (sem Supabase): não há para onde enviar, então nada é enfileirado.
+final syncOutboxWriterProvider = Provider<SyncOutboxWriter?>((ref) {
+  if (!ref.watch(authRepositoryProvider).canUseSupabase) return null;
   return SyncOutboxWriter(ref.watch(pulseDatabaseProvider));
 });
 
@@ -79,19 +83,53 @@ final gamificationCoordinatorProvider =
   return GamificationCoordinator(
     ref.watch(pulseDatabaseProvider),
     analytics: ref.watch(analyticsGatewayProvider),
+    syncOutbox: ref.watch(syncOutboxWriterProvider),
   );
 });
+
+/// Conquistas desbloqueadas pela última conclusão, à espera de aviso na UI.
+final pendingAchievementUnlocksProvider =
+    StateProvider<List<String>>((ref) => const []);
 
 final habitCompletionHooksProvider =
     Provider<HabitCompletionHooks>((ref) {
   final gam = ref.watch(gamificationCoordinatorProvider);
   return HabitCompletionHooks(
     afterMarkedComplete: (habit, day) async {
-      final uid = ref.read(authRepositoryProvider).currentUser?.id;
+      final uid = ref.read(authRepositoryProvider).currentUserId;
       if (uid == null || uid.isEmpty) return;
-      await gam.onMarkedComplete(userId: uid, habit: habit, day: day);
+      final unlocked =
+          await gam.onMarkedComplete(userId: uid, habit: habit, day: day);
+      if (unlocked.isNotEmpty) {
+        ref.read(pendingAchievementUnlocksProvider.notifier).state = unlocked;
+      }
     },
   );
+});
+
+/// Dispara o envio da fila sem bloquear a UI; falhas ficam para a próxima tentativa.
+final backgroundSyncProvider = Provider<void Function()>((ref) {
+  return () {
+    final uid = ref.read(authRepositoryProvider).currentUserId;
+    if (uid == null || uid.isEmpty) return;
+    unawaited(
+      ref.read(pulseSyncEngineProvider).flushOutbox(uid).catchError((_) {}),
+    );
+  };
+});
+
+/// Reagenda os lembretes sem bloquear a UI (ex.: hábito concluído não lembra mais hoje).
+final backgroundRescheduleProvider = Provider<void Function()>((ref) {
+  return () {
+    final uid = ref.read(authRepositoryProvider).currentUserId;
+    if (uid == null || uid.isEmpty) return;
+    unawaited(
+      ref
+          .read(pulseHabitNotificationSchedulerProvider)
+          .rescheduleAll(uid)
+          .catchError((_) {}),
+    );
+  };
 });
 
 final habitsRepositoryProvider = Provider<HabitsRepository>((ref) {

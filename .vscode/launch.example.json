@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Pulse (sem Supabase)",
+      "name": "Pulse (modo local, sem Supabase)",
       "request": "launch",
       "type": "dart",
       "cwd": "${workspaceFolder}",

@@ -47,6 +47,7 @@ class HabitsRepository {
       weekdaysBitmask: habit.weekdaysBitmask,
       completionDateKeys: keys,
       now: DateTime.now(),
+      createdAtMs: habit.createdAtMs,
     );
   }
 
@@ -55,12 +56,13 @@ class HabitsRepository {
     final key = dateKeyFromDateTime(day);
     final out = <HabitTodayRow>[];
     for (final h in scheduled) {
-      final done = await _db.hasCompletion(h.id, key);
+      final quantity = (await _db.completionRow(h.id, key))?.quantity ?? 0;
       final m = await metricsFor(h);
       out.add(
         HabitTodayRow(
           habit: h,
-          done: done,
+          done: quantity > 0 && isDailyTargetReached(quantity, h.dailyTarget),
+          quantity: quantity,
           currentStreak: m.currentStreak,
           completionRate30d: m.completionRate30d,
         ),
@@ -146,6 +148,42 @@ class HabitsRepository {
     if (row != null) {
       await _syncOutbox?.enqueueHabitUpsert(row);
     }
+    if (dailyTarget > habit.dailyTarget) {
+      await _keepPastDaysCompleted(
+        habit: habit,
+        newTarget: dailyTarget,
+        nowMs: now,
+      );
+    }
+  }
+
+  /// Ao aumentar a meta, dias anteriores que estavam concluídos na meta antiga
+  /// continuam concluídos (o dia de hoje passa a refletir a meta nova).
+  Future<void> _keepPastDaysCompleted({
+    required Habit habit,
+    required double newTarget,
+    required int nowMs,
+  }) async {
+    final todayKey = dateKeyFromDateTime(DateTime.now());
+    final rows = await _db.progressRowsForHabit(habit.id);
+    for (final r in rows) {
+      if (r.dateKey == todayKey) continue;
+      if (!isDailyTargetReached(r.quantity, habit.dailyTarget)) continue;
+      if (isDailyTargetReached(r.quantity, newTarget)) continue;
+      await _db.setCompletion(
+        habitId: habit.id,
+        dateKey: r.dateKey,
+        completedAtMs: r.completedAtMs,
+        quantity: newTarget,
+      );
+      await _syncOutbox?.enqueueCompletionUpsert(
+        habitId: habit.id,
+        dateKey: r.dateKey,
+        completedAtMs: r.completedAtMs,
+        quantity: newTarget,
+        updatedAtMs: nowMs,
+      );
+    }
   }
 
   Future<void> deleteHabit(Habit habit) async {
@@ -157,37 +195,70 @@ class HabitsRepository {
     }
   }
 
+  /// Grava o progresso do dia ([quantity] <= 0 remove o registro).
+  /// Retorna `true` se a meta do dia ficou atingida.
+  Future<bool> setProgress({
+    required Habit habit,
+    required DateTime day,
+    required double quantity,
+  }) async {
+    final key = dateKeyFromDateTime(day);
+    final previous = await _db.completionRow(habit.id, key);
+    final wasDone = previous != null &&
+        isDailyTargetReached(previous.quantity, habit.dailyTarget);
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+    if (quantity <= 0) {
+      if (previous != null) {
+        await _db.deleteCompletion(habit.id, key);
+        await _syncOutbox?.enqueueCompletionDelete(
+          habitId: habit.id,
+          dateKey: key,
+          deletedAtMs: nowMs,
+        );
+      }
+      final cb = _completionHooks?.afterUnmarked;
+      if (wasDone && cb != null) await cb(habit, day);
+      return false;
+    }
+
+    await _db.setCompletion(
+      habitId: habit.id,
+      dateKey: key,
+      completedAtMs: nowMs,
+      quantity: quantity,
+    );
+    await _syncOutbox?.enqueueCompletionUpsert(
+      habitId: habit.id,
+      dateKey: key,
+      completedAtMs: nowMs,
+      quantity: quantity,
+    );
+
+    final done = isDailyTargetReached(quantity, habit.dailyTarget);
+    if (done && !wasDone) {
+      final cb = _completionHooks?.afterMarkedComplete;
+      if (cb != null) await cb(habit, day);
+    } else if (!done && wasDone) {
+      final cb = _completionHooks?.afterUnmarked;
+      if (cb != null) await cb(habit, day);
+    }
+    return done;
+  }
+
+  /// Alterna entre "meta atingida" e "sem registro".
   /// Retorna `true` se ficou marcado como concluído.
   Future<bool> toggleCompletion({
     required Habit habit,
     required DateTime day,
   }) async {
-    final key = dateKeyFromDateTime(day);
-    final exists = await _db.hasCompletion(habit.id, key);
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    if (exists) {
-      await _db.deleteCompletion(habit.id, key);
-      await _syncOutbox?.enqueueCompletionDelete(habitId: habit.id, dateKey: key);
-      final cb = _completionHooks?.afterUnmarked;
-      if (cb != null) await cb(habit, day);
-      return false;
-    } else {
-      await _db.setCompletion(
-        habitId: habit.id,
-        dateKey: key,
-        completedAtMs: nowMs,
-        quantity: 1,
-      );
-      await _syncOutbox?.enqueueCompletionUpsert(
-        habitId: habit.id,
-        dateKey: key,
-        completedAtMs: nowMs,
-        quantity: 1,
-      );
-      final cb = _completionHooks?.afterMarkedComplete;
-      if (cb != null) await cb(habit, day);
-      return true;
-    }
+    final done =
+        await _db.hasCompletion(habit.id, dateKeyFromDateTime(day));
+    return setProgress(
+      habit: habit,
+      day: day,
+      quantity: done ? 0 : habit.dailyTarget,
+    );
   }
 
   Future<DashboardSnapshot> dashboardSnapshot({

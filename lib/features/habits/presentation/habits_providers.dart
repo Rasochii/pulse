@@ -15,7 +15,7 @@ final todayHabitsProvider =
     FutureProvider.autoDispose<List<HabitTodayRow>>((ref) async {
   ref.watch(authUidStreamProvider);
   final uid = ref.watch(authUidStreamProvider).valueOrNull ??
-      ref.watch(authRepositoryProvider).currentUser?.id;
+      ref.watch(authRepositoryProvider).currentUserId;
   if (uid == null || uid.isEmpty) return [];
   return ref.watch(habitsRepositoryProvider).todayRows(uid, DateTime.now());
 });

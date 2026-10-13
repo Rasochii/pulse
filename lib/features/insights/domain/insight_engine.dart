@@ -1,5 +1,6 @@
 import '../../../core/utils/date_key.dart';
 import '../../../core/database/app_database.dart';
+import '../../habits/domain/habit_schedule.dart';
 
 class InsightVm {
   const InsightVm({
@@ -72,7 +73,7 @@ abstract final class InsightEngine {
       final w = day.weekday - 1;
       var exp = 0;
       for (final h in habits) {
-        if (isWeekdayInBitmask(day.weekday, h.weekdaysBitmask)) exp++;
+        if (isHabitExpectedOn(h, day)) exp++;
       }
       if (exp == 0) continue;
       dowTotal[w] += exp;

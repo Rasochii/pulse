@@ -7,6 +7,7 @@ import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../database/app_database.dart';
+import '../utils/date_key.dart';
 import '../../features/habits/domain/habit_reminder_times_codec.dart';
 import 'pulse_local_notifications.dart';
 
@@ -16,6 +17,9 @@ final class PulseHabitNotificationScheduler {
 
   final PulseDatabase _db;
   static bool _timezoneReady = false;
+
+  /// Reagendamentos em fila: cada um cancela tudo e recria, não podem se intercalar.
+  Future<void> _queue = Future<void>.value();
 
   Future<void> initTimeZone() async {
     if (_timezoneReady) return;
@@ -59,7 +63,13 @@ final class PulseHabitNotificationScheduler {
     return (h ^ (weekday << 8) ^ (slotIndex << 16)) & 0x7fffffff;
   }
 
-  Future<void> rescheduleAll(String userId) async {
+  Future<void> rescheduleAll(String userId) {
+    final next = _queue.catchError((_) {}).then((_) => _rescheduleAll(userId));
+    _queue = next;
+    return next;
+  }
+
+  Future<void> _rescheduleAll(String userId) async {
     await PulseLocalNotifications.ensureInitialized();
     await initTimeZone();
     await cancelAllForPulse();
@@ -88,10 +98,15 @@ final class PulseHabitNotificationScheduler {
       iOS: DarwinNotificationDetails(threadIdentifier: 'pulse_habit'),
     );
 
+    final todayKey = dateKeyFromDateTime(DateTime.now());
+
     for (final habit in habits) {
       final times =
           decodeHabitReminderTimes(habit.reminderTimesJson);
       if (times.isEmpty) continue;
+
+      // Hábito já concluído hoje: os lembretes de hoje só voltam na semana que vem.
+      final doneToday = await _db.hasCompletion(habit.id, todayKey);
 
       for (var s = 0; s < times.length; s++) {
         final t = times[s];
@@ -110,6 +125,7 @@ final class PulseHabitNotificationScheduler {
             hour: t.hour,
             minute: t.minute,
             details: details,
+            skipToday: doneToday,
           );
         }
       }
@@ -120,6 +136,7 @@ final class PulseHabitNotificationScheduler {
     required int dow,
     required int hour,
     required int minute,
+    required bool skipToday,
   }) {
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(
@@ -134,6 +151,12 @@ final class PulseHabitNotificationScheduler {
         scheduled.isBefore(now.subtract(const Duration(seconds: 1)))) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
+    final isToday = scheduled.year == now.year &&
+        scheduled.month == now.month &&
+        scheduled.day == now.day;
+    if (skipToday && isToday) {
+      scheduled = scheduled.add(const Duration(days: 7));
+    }
     return scheduled;
   }
 
@@ -145,8 +168,14 @@ final class PulseHabitNotificationScheduler {
     required int hour,
     required int minute,
     required NotificationDetails details,
+    required bool skipToday,
   }) async {
-    final when = _nextInstanceFrom(dow: dow, hour: hour, minute: minute);
+    final when = _nextInstanceFrom(
+      dow: dow,
+      hour: hour,
+      minute: minute,
+      skipToday: skipToday,
+    );
     await PulseLocalNotifications.plugin.zonedSchedule(
       id,
       title,

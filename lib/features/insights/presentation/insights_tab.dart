@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/theme/app_colors.dart';
 import 'insights_providers.dart';
@@ -20,7 +21,7 @@ class InsightsTab extends ConsumerWidget {
             child: CircularProgressIndicator(color: PulseColors.accent),
           ),
           error: (e, _) =>
-              Center(child: Text('Insights indisponíveis: $e')),
+              Center(child: Text(friendlyError(e, 'Insights indisponíveis no momento.'))),
           data: (list) {
             if (list.isEmpty) {
               return const Center(child: Text('Sem insights por enquanto.'));

@@ -9,7 +9,7 @@ final dashboardSnapshotProvider =
   ref.watch(authRepositoryProvider);
   final uid =
       ref.watch(authUidStreamProvider).valueOrNull ??
-          ref.watch(authRepositoryProvider).currentUser?.id ??
+          ref.watch(authRepositoryProvider).currentUserId ??
           '';
   if (uid.isEmpty) {
     return DashboardSnapshot.empty('aí');

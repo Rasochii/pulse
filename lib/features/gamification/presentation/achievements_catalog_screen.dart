@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/theme/app_colors.dart';
 import '../domain/achievement_defs.dart';
 import 'gamification_providers.dart';
@@ -35,7 +36,7 @@ class _AchievementsCatalogScreenState
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('Erro: $e'),
+            child: Text(friendlyError(e, 'Não foi possível carregar as conquistas.')),
           ),
         ),
         data: (unlocks) {
@@ -126,7 +127,13 @@ class _AchievementsCatalogScreenState
                         )
                       : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                          // Padding explícito anula o do sistema: soma a barra de navegação nativa.
+                          padding: EdgeInsets.fromLTRB(
+                            20,
+                            0,
+                            20,
+                            32 + MediaQuery.paddingOf(context).bottom,
+                          ),
                           itemCount: filtered.length,
                           separatorBuilder: (_, _) => const SizedBox(height: 8),
                           itemBuilder: (context, index) {

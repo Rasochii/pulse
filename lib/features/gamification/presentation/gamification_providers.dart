@@ -7,7 +7,7 @@ final gamificationProfileProvider =
     FutureProvider.autoDispose<GamificationProfile?>((ref) async {
   final uid =
       ref.watch(authUidStreamProvider).valueOrNull ??
-          ref.watch(authRepositoryProvider).currentUser?.id;
+          ref.watch(authRepositoryProvider).currentUserId;
   if (uid == null || uid.isEmpty) return null;
   final db = ref.watch(pulseDatabaseProvider);
   return db.gamificationForUser(uid);
@@ -17,7 +17,7 @@ final unlockedAchievementsProvider =
     FutureProvider.autoDispose<List<UserAchievementUnlock>>((ref) async {
   final uid =
       ref.watch(authUidStreamProvider).valueOrNull ??
-          ref.watch(authRepositoryProvider).currentUser?.id;
+          ref.watch(authRepositoryProvider).currentUserId;
   if (uid == null || uid.isEmpty) return [];
   return ref.watch(pulseDatabaseProvider).achievementsFor(uid);
 });

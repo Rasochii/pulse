@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
@@ -76,8 +77,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     _name = TextEditingController(text: h?.name ?? '');
     _description = TextEditingController(text: h?.description ?? '');
     _category = TextEditingController(text: h?.category ?? '');
-    _target =
-        TextEditingController(text: (h?.dailyTarget ?? 1).toString());
+    _target = TextEditingController(
+      text: formatGoalNumber(h?.dailyTarget ?? 1),
+    );
     _targetUnit = TextEditingController(text: h?.dailyTargetUnit ?? '');
     _spreadCount = TextEditingController(text: '3');
     _iconKey = h?.iconKey ?? 'task_alt';
@@ -221,7 +223,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final uid = ref.read(authRepositoryProvider).currentUser?.id;
+    final uid = ref.read(authRepositoryProvider).currentUserId;
     if (uid == null) {
       if (mounted) {
         showPulseSnackBar(
@@ -311,7 +313,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
       if (mounted) {
         showPulseSnackBar(
           context,
-          'Erro ao salvar: $e',
+          friendlyError(e, 'Não foi possível salvar o hábito.'),
           kind: PulseSnackKind.error,
         );
       }
@@ -343,7 +345,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     try {
       await ref.read(habitsRepositoryProvider).deleteHabit(h);
       try {
-        final u = ref.read(authRepositoryProvider).currentUser?.id;
+        final u = ref.read(authRepositoryProvider).currentUserId;
         if (u != null) {
           await ref.read(pulseHabitNotificationSchedulerProvider).rescheduleAll(u);
           await ref.read(pulseSyncEngineProvider).flushOutbox(u);
@@ -357,7 +359,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
       if (mounted) {
         showPulseSnackBar(
           context,
-          'Erro ao excluir: $e',
+          friendlyError(e, 'Não foi possível excluir o hábito.'),
           kind: PulseSnackKind.error,
         );
       }
@@ -384,7 +386,13 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+          // Padding explícito anula o do sistema: soma a barra de navegação nativa.
+          padding: EdgeInsets.fromLTRB(
+            20,
+            0,
+            20,
+            32 + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             TextFormField(
               controller: _name,

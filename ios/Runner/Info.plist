@@ -47,6 +47,20 @@
 			</array>
 		</dict>
 	</dict>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pulse</string>
+				<!-- Google Sign-In: adicione aqui o REVERSED_CLIENT_ID do cliente iOS (ver README). -->
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSUserNotificationsUsageDescription</key>

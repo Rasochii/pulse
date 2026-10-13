@@ -7,7 +7,7 @@ final insightsListProvider =
     FutureProvider.autoDispose<List<InsightVm>>((ref) async {
   final uid =
       ref.watch(authUidStreamProvider).valueOrNull ??
-          ref.watch(authRepositoryProvider).currentUser?.id;
+          ref.watch(authRepositoryProvider).currentUserId;
   final db = ref.watch(pulseDatabaseProvider);
   if (uid == null || uid.isEmpty) {
     return InsightEngine.generate(

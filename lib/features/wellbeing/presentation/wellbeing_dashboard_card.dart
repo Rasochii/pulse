@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/presentation/friendly_error.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/theme/app_colors.dart';
 import 'wellbeing_history_screen.dart';
@@ -52,7 +53,7 @@ class WellbeingDashboardCard extends ConsumerWidget {
           vertical: compact ? 10 : 16,
         ),
         child: Text(
-          'Não foi possível carregar o humor: $e',
+          friendlyError(e, 'Não foi possível carregar o humor.'),
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       ),

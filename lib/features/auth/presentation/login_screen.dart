@@ -30,6 +30,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _loading = false;
   bool _registerMode = false;
 
+  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
   @override
   void dispose() {
     _email.dispose();
@@ -91,6 +93,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await auth.signInWithGoogle();
       if (!mounted) return;
       context.go(AppShellScreen.path);
+    } on PulseAuthCancelled {
+      // Usuário fechou o seletor de conta — nada a mostrar.
     } on PulseAuthFailure catch (e) {
       if (!mounted) return;
       showPulseSnackBar(context, e.message, kind: PulseSnackKind.error);
@@ -206,7 +210,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ),
                                     validator: (v) {
                                       final s = v?.trim() ?? '';
-                                      if (!s.contains('@')) {
+                                      if (!_emailPattern.hasMatch(s)) {
                                         return 'E-mail inválido';
                                       }
                                       return null;
@@ -278,6 +282,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             ),
                                           ),
                                   ),
+                                  // Sem GOOGLE_WEB_CLIENT_ID o login com Google não funciona: some da tela.
+                                  if (auth.canUseGoogle) ...[
                                   const SizedBox(height: 12),
                                   Row(
                                     children: [
@@ -313,6 +319,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       minimumSize: const Size.fromHeight(52),
                                     ),
                                   ),
+                                  ],
                                   const SizedBox(height: 8),
                                   TextButton(
                                     onPressed: !_loading

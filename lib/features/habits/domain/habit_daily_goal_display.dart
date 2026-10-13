@@ -5,7 +5,7 @@ String habitDailyGoalLabel(Habit h) =>
 
 /// Texto amigável para UI (lista, formulário) sem instanciar [Habit].
 String formatDailyGoalLine(double value, String? unit) {
-  final s = _formatGoalNumber(value);
+  final s = formatGoalNumber(value);
   final u = unit?.trim();
   if (u == null || u.isEmpty) {
     return 'Meta: $s';
@@ -13,7 +13,15 @@ String formatDailyGoalLine(double value, String? unit) {
   return 'Meta: $s $u';
 }
 
-String _formatGoalNumber(double v) {
+/// Progresso do dia, ex.: `3 / 8 copos`.
+String formatDailyProgressLine(double done, double target, String? unit) {
+  final u = unit?.trim();
+  final base = '${formatGoalNumber(done)} / ${formatGoalNumber(target)}';
+  return u == null || u.isEmpty ? base : '$base $u';
+}
+
+/// Número sem casas decimais desnecessárias (`8`, `2.5`).
+String formatGoalNumber(double v) {
   if (v == v.roundToDouble()) return '${v.round()}';
   return v.toString();
 }

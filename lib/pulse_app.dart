@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/theme/light_theme.dart';
+import 'features/auth/presentation/reset_password_screen.dart';
 import 'features/habits/presentation/app_shell_screen.dart';
 import 'features/settings/presentation/theme_provider.dart';
 import 'providers/app_providers.dart';
@@ -20,6 +23,7 @@ class PulseApp extends ConsumerStatefulWidget {
 
 class _PulseAppState extends ConsumerState<PulseApp> {
   StreamSubscription<Uri>? _deepLinkSubscription;
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
@@ -28,8 +32,19 @@ class _PulseAppState extends ConsumerState<PulseApp> {
       final router = ref.read(goRouterProvider);
       await ref.read(themeDarkNotifierProvider.notifier).loadPersisted();
 
+      // O link de "esqueci a senha" abre o app já autenticado; falta só a nova senha.
+      final auth = ref.read(authRepositoryProvider);
+      _authSubscription ??= auth.authStateChanges.listen((state) {
+        if (state.event == AuthChangeEvent.passwordRecovery) {
+          auth.passwordRecoveryPending = true;
+          router.go(ResetPasswordScreen.path);
+        }
+      });
+
       Future<void> handle(Uri uri) async {
         if (!mounted) return;
+        // Retorno do Supabase Auth: o próprio supabase_flutter troca o código pela sessão.
+        if (uri.host == 'auth-callback') return;
         final path = '${uri.scheme}://${uri.host}${uri.path}';
         if (uri.scheme == 'pulse' ||
             uri.host.startsWith('pulse') ||
@@ -52,6 +67,7 @@ class _PulseAppState extends ConsumerState<PulseApp> {
   @override
   void dispose() {
     _deepLinkSubscription?.cancel();
+    _authSubscription?.cancel();
     super.dispose();
   }
 
@@ -66,6 +82,9 @@ class _PulseAppState extends ConsumerState<PulseApp> {
     return MaterialApp.router(
       title: 'Pulse',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('pt', 'BR'),
+      supportedLocales: const [Locale('pt', 'BR')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,
       theme: buildPulseLightTheme(),
       darkTheme: buildPulseDarkTheme(),
