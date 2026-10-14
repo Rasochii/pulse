@@ -48,6 +48,20 @@ final class PulseSyncEngine {
   /// Dá nova chance aos itens que esgotaram [maxAttempts] (chamar ao abrir o app).
   Future<void> retryFailed() => _db.resetOutboxAttempts();
 
+  /// Alterações de [userId] ainda na fila (inclui as que esgotaram as tentativas).
+  Future<int> pendingCount(String userId) async {
+    var count = 0;
+    for (final row in await _db.pendingOutbox(limit: 100000)) {
+      try {
+        final map = jsonDecode(row.payloadJson) as Map<String, dynamic>;
+        if (await _ownerOf(row.entity, map) == userId) count++;
+      } catch (_) {
+        // Item ilegível não é enviado de qualquer forma.
+      }
+    }
+    return count;
+  }
+
   /// Envia a fila. Chamadas concorrentes são fundidas numa só execução.
   Future<void> flushOutbox(String userId) {
     final running = _flushInFlight;

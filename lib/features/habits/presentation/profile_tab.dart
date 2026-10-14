@@ -27,8 +27,62 @@ class ProfileTab extends ConsumerStatefulWidget {
 
 class _ProfileTabState extends ConsumerState<ProfileTab> {
   bool _deleting = false;
+  bool _signingOut = false;
+
+  /// Tenta enviar a fila antes de sair; se sobrar algo, pede confirmação.
+  /// Retorna `false` se o usuário desistiu.
+  Future<bool> _confirmPendingBeforeSignOut() async {
+    final uid = ref.read(authRepositoryProvider).currentUser?.id;
+    if (uid == null) return true;
+    final sync = ref.read(pulseSyncEngineProvider);
+    setState(() => _signingOut = true);
+    int pending;
+    try {
+      await sync.retryFailed();
+      await sync.flushOutbox(uid).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // Sem rede ou demorou demais: o que sobrou entra na contagem abaixo.
+    }
+    try {
+      pending = await sync.pendingCount(uid);
+    } catch (_) {
+      pending = 0;
+    }
+    if (!mounted) return false;
+    setState(() => _signingOut = false);
+    if (pending == 0) return true;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Alterações não enviadas'),
+        content: Text(
+          '${pending == 1 ? 'Há 1 alteração que ainda não foi' : 'Há $pending alterações que ainda não foram'} '
+          'para a nuvem (provavelmente por falta de internet).\n\n'
+          'Se sair agora, ${pending == 1 ? 'ela continua guardada' : 'elas continuam guardadas'} '
+          'neste aparelho e só ${pending == 1 ? 'é enviada' : 'são enviadas'} quando você '
+          'entrar de novo nesta conta aqui. Desinstalar o app antes disso faz perder '
+          'o que não foi enviado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sair mesmo assim'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
 
   Future<void> _signOut() async {
+    if (_signingOut) return;
+    if (!await _confirmPendingBeforeSignOut()) return;
+    if (!mounted) return;
     final router = ref.read(goRouterProvider);
     try {
       // Os lembretes são do usuário que está saindo.
@@ -476,9 +530,15 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
               if (user != null) ...[
                 const SizedBox(height: 20),
                 FilledButton.tonalIcon(
-                  onPressed: _signOut,
-                  icon: const Icon(Icons.logout_rounded),
-                  label: const Text('Sair'),
+                  onPressed: _signingOut ? null : _signOut,
+                  icon: _signingOut
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.logout_rounded),
+                  label: Text(_signingOut ? 'Enviando alterações…' : 'Sair'),
                 ),
               ],
             ],
