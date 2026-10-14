@@ -19,7 +19,9 @@ create table if not exists public.pulse_habits (
   reminder_times_json text,
   created_at_ms bigint not null,
   updated_at_ms bigint not null,
-  deleted_at_ms bigint
+  deleted_at_ms bigint,
+  -- Ordem manual na lista (0 = sem ordem; empate pelo nome).
+  sort_order int not null default 0
 );
 
 create table if not exists public.pulse_habit_completions (

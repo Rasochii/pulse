@@ -37,6 +37,8 @@ class Habits extends Table {
   IntColumn get createdAtMs => integer()();
   IntColumn get updatedAtMs => integer()();
   IntColumn get deletedAtMs => integer().nullable()();
+  /// Posição escolhida pelo usuário na lista (menor primeiro; empate por nome).
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -140,7 +142,7 @@ class PulseDatabase extends _$PulseDatabase {
         );
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -176,6 +178,15 @@ class PulseDatabase extends _$PulseDatabase {
               '(SELECT daily_target FROM habits WHERE habits.id = habit_completions.habit_id)',
             );
           }
+          if (from < 6) {
+            // v6: ordem manual. Começa igual à ordem alfabética de antes, por usuário.
+            await m.addColumn(habits, habits.sortOrder);
+            await customStatement(
+              'UPDATE habits SET sort_order = (SELECT COUNT(*) FROM habits h2 '
+              'WHERE h2.user_id = habits.user_id AND (h2.name < habits.name '
+              'OR (h2.name = habits.name AND h2.id < habits.id)))',
+            );
+          }
         },
       );
 
@@ -206,7 +217,10 @@ class PulseDatabase extends _$PulseDatabase {
     return (select(habits)
           ..where((h) =>
               h.userId.equals(userId) & h.deletedAtMs.isNull())
-          ..orderBy([(h) => OrderingTerm.asc(h.name)]))
+          ..orderBy([
+            (h) => OrderingTerm.asc(h.sortOrder),
+            (h) => OrderingTerm.asc(h.name),
+          ]))
         .watch();
   }
 
@@ -214,7 +228,10 @@ class PulseDatabase extends _$PulseDatabase {
     return (select(habits)
           ..where((h) =>
               h.userId.equals(userId) & h.deletedAtMs.isNull())
-          ..orderBy([(h) => OrderingTerm.asc(h.name)]))
+          ..orderBy([
+            (h) => OrderingTerm.asc(h.sortOrder),
+            (h) => OrderingTerm.asc(h.name),
+          ]))
         .get();
   }
 
@@ -224,6 +241,26 @@ class PulseDatabase extends _$PulseDatabase {
   Future<int> insertHabit(HabitsCompanion row) => into(habits).insert(row);
 
   Future<void> updateHabit(HabitsCompanion row) => update(habits).replace(row);
+
+  /// Próxima posição livre: hábito novo entra no fim da lista.
+  Future<int> nextHabitSortOrder(String userId) async {
+    final maxOrder = habits.sortOrder.max();
+    final row = await (selectOnly(habits)
+          ..addColumns([maxOrder])
+          ..where(habits.userId.equals(userId) & habits.deletedAtMs.isNull()))
+        .getSingle();
+    final current = row.read(maxOrder);
+    return current == null ? 0 : current + 1;
+  }
+
+  Future<void> setHabitSortOrder(String id, int order, int updatedAtMs) {
+    return (update(habits)..where((h) => h.id.equals(id))).write(
+      HabitsCompanion(
+        sortOrder: Value(order),
+        updatedAtMs: Value(updatedAtMs),
+      ),
+    );
+  }
 
   Future<int> softDeleteHabit(String id, int nowMs) {
     return (update(habits)..where((h) => h.id.equals(id))).write(

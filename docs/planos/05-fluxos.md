@@ -93,7 +93,7 @@ Levantados numa leitura de ponta a ponta depois do teste em aparelho. Ordem de e
 
 ## 5.12 Versão web (PWA) no GitHub Pages (adendo)
 
-- **Banco:** `driftDatabase` com `DriftWebOptions`; `web/sqlite3.wasm` (sqlite3 2.9.4) e `web/drift_worker.js` (drift 2.28.2) vêm das releases dos pacotes e precisam acompanhar as versões do `pubspec.lock`. Sem os cabeçalhos COOP/COEP do Pages, o armazenamento é IndexedDB.
+- **Banco:** `driftDatabase` com `DriftWebOptions`; `web/sqlite3.wasm` (sqlite3 2.9.4) e `web/drift_worker.js` (drift 2.31.0) vêm das releases dos pacotes e precisam acompanhar as versões do `pubspec.lock`. Sem os cabeçalhos COOP/COEP do Pages, o armazenamento é IndexedDB.
 - **Lembretes:** não existem no navegador (`kRemindersSupported`): somem do formulário, do Perfil e do onboarding; horários já salvos são preservados.
 - **Login com Google:** na web é por redirecionamento (`signInWithOAuth`); o plugin nativo só é criado no primeiro uso, porque na web ele se inicializa sozinho e falha sem client ID.
 - **Dados criados sem conta:** a passagem para a conta também roda no splash e no evento `signedIn`, para cobrir a volta do redirecionamento.

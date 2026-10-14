@@ -195,6 +195,18 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -213,6 +225,7 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
     createdAtMs,
     updatedAtMs,
     deletedAtMs,
+    sortOrder,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -359,6 +372,12 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
         ),
       );
     }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
     return context;
   }
 
@@ -432,6 +451,10 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
         DriftSqlType.int,
         data['${effectivePrefix}deleted_at_ms'],
       ),
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
     );
   }
 
@@ -462,6 +485,9 @@ class Habit extends DataClass implements Insertable<Habit> {
   final int createdAtMs;
   final int updatedAtMs;
   final int? deletedAtMs;
+
+  /// Posição escolhida pelo usuário na lista (menor primeiro; empate por nome).
+  final int sortOrder;
   const Habit({
     required this.id,
     required this.userId,
@@ -479,6 +505,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     required this.createdAtMs,
     required this.updatedAtMs,
     this.deletedAtMs,
+    required this.sortOrder,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -513,6 +540,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     if (!nullToAbsent || deletedAtMs != null) {
       map['deleted_at_ms'] = Variable<int>(deletedAtMs);
     }
+    map['sort_order'] = Variable<int>(sortOrder);
     return map;
   }
 
@@ -548,6 +576,7 @@ class Habit extends DataClass implements Insertable<Habit> {
       deletedAtMs: deletedAtMs == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAtMs),
+      sortOrder: Value(sortOrder),
     );
   }
 
@@ -575,6 +604,7 @@ class Habit extends DataClass implements Insertable<Habit> {
       createdAtMs: serializer.fromJson<int>(json['createdAtMs']),
       updatedAtMs: serializer.fromJson<int>(json['updatedAtMs']),
       deletedAtMs: serializer.fromJson<int?>(json['deletedAtMs']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
     );
   }
   @override
@@ -597,6 +627,7 @@ class Habit extends DataClass implements Insertable<Habit> {
       'createdAtMs': serializer.toJson<int>(createdAtMs),
       'updatedAtMs': serializer.toJson<int>(updatedAtMs),
       'deletedAtMs': serializer.toJson<int?>(deletedAtMs),
+      'sortOrder': serializer.toJson<int>(sortOrder),
     };
   }
 
@@ -617,6 +648,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     int? createdAtMs,
     int? updatedAtMs,
     Value<int?> deletedAtMs = const Value.absent(),
+    int? sortOrder,
   }) => Habit(
     id: id ?? this.id,
     userId: userId ?? this.userId,
@@ -640,6 +672,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     createdAtMs: createdAtMs ?? this.createdAtMs,
     updatedAtMs: updatedAtMs ?? this.updatedAtMs,
     deletedAtMs: deletedAtMs.present ? deletedAtMs.value : this.deletedAtMs,
+    sortOrder: sortOrder ?? this.sortOrder,
   );
   Habit copyWithCompanion(HabitsCompanion data) {
     return Habit(
@@ -679,6 +712,7 @@ class Habit extends DataClass implements Insertable<Habit> {
       deletedAtMs: data.deletedAtMs.present
           ? data.deletedAtMs.value
           : this.deletedAtMs,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
     );
   }
 
@@ -700,7 +734,8 @@ class Habit extends DataClass implements Insertable<Habit> {
           ..write('reminderTimesJson: $reminderTimesJson, ')
           ..write('createdAtMs: $createdAtMs, ')
           ..write('updatedAtMs: $updatedAtMs, ')
-          ..write('deletedAtMs: $deletedAtMs')
+          ..write('deletedAtMs: $deletedAtMs, ')
+          ..write('sortOrder: $sortOrder')
           ..write(')'))
         .toString();
   }
@@ -723,6 +758,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     createdAtMs,
     updatedAtMs,
     deletedAtMs,
+    sortOrder,
   );
   @override
   bool operator ==(Object other) =>
@@ -743,7 +779,8 @@ class Habit extends DataClass implements Insertable<Habit> {
           other.reminderTimesJson == this.reminderTimesJson &&
           other.createdAtMs == this.createdAtMs &&
           other.updatedAtMs == this.updatedAtMs &&
-          other.deletedAtMs == this.deletedAtMs);
+          other.deletedAtMs == this.deletedAtMs &&
+          other.sortOrder == this.sortOrder);
 }
 
 class HabitsCompanion extends UpdateCompanion<Habit> {
@@ -763,6 +800,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
   final Value<int> createdAtMs;
   final Value<int> updatedAtMs;
   final Value<int?> deletedAtMs;
+  final Value<int> sortOrder;
   final Value<int> rowid;
   const HabitsCompanion({
     this.id = const Value.absent(),
@@ -781,6 +819,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     this.createdAtMs = const Value.absent(),
     this.updatedAtMs = const Value.absent(),
     this.deletedAtMs = const Value.absent(),
+    this.sortOrder = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   HabitsCompanion.insert({
@@ -800,6 +839,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     required int createdAtMs,
     required int updatedAtMs,
     this.deletedAtMs = const Value.absent(),
+    this.sortOrder = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        userId = Value(userId),
@@ -823,6 +863,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     Expression<int>? createdAtMs,
     Expression<int>? updatedAtMs,
     Expression<int>? deletedAtMs,
+    Expression<int>? sortOrder,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -842,6 +883,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
       if (createdAtMs != null) 'created_at_ms': createdAtMs,
       if (updatedAtMs != null) 'updated_at_ms': updatedAtMs,
       if (deletedAtMs != null) 'deleted_at_ms': deletedAtMs,
+      if (sortOrder != null) 'sort_order': sortOrder,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -863,6 +905,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     Value<int>? createdAtMs,
     Value<int>? updatedAtMs,
     Value<int?>? deletedAtMs,
+    Value<int>? sortOrder,
     Value<int>? rowid,
   }) {
     return HabitsCompanion(
@@ -882,6 +925,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
       createdAtMs: createdAtMs ?? this.createdAtMs,
       updatedAtMs: updatedAtMs ?? this.updatedAtMs,
       deletedAtMs: deletedAtMs ?? this.deletedAtMs,
+      sortOrder: sortOrder ?? this.sortOrder,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -937,6 +981,9 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     if (deletedAtMs.present) {
       map['deleted_at_ms'] = Variable<int>(deletedAtMs.value);
     }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -962,6 +1009,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
           ..write('createdAtMs: $createdAtMs, ')
           ..write('updatedAtMs: $updatedAtMs, ')
           ..write('deletedAtMs: $deletedAtMs, ')
+          ..write('sortOrder: $sortOrder, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3153,6 +3201,7 @@ typedef $$HabitsTableCreateCompanionBuilder =
       required int createdAtMs,
       required int updatedAtMs,
       Value<int?> deletedAtMs,
+      Value<int> sortOrder,
       Value<int> rowid,
     });
 typedef $$HabitsTableUpdateCompanionBuilder =
@@ -3173,6 +3222,7 @@ typedef $$HabitsTableUpdateCompanionBuilder =
       Value<int> createdAtMs,
       Value<int> updatedAtMs,
       Value<int?> deletedAtMs,
+      Value<int> sortOrder,
       Value<int> rowid,
     });
 
@@ -3309,6 +3359,11 @@ class $$HabitsTableFilterComposer
 
   ColumnFilters<int> get deletedAtMs => $composableBuilder(
     column: $table.deletedAtMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3451,6 +3506,11 @@ class $$HabitsTableOrderingComposer
     column: $table.deletedAtMs,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$HabitsTableAnnotationComposer
@@ -3529,6 +3589,9 @@ class $$HabitsTableAnnotationComposer
     column: $table.deletedAtMs,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
   Expression<T> habitCompletionsRefs<T extends Object>(
     Expression<T> Function($$HabitCompletionsTableAnnotationComposer a) f,
@@ -3628,6 +3691,7 @@ class $$HabitsTableTableManager
                 Value<int> createdAtMs = const Value.absent(),
                 Value<int> updatedAtMs = const Value.absent(),
                 Value<int?> deletedAtMs = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => HabitsCompanion(
                 id: id,
@@ -3646,6 +3710,7 @@ class $$HabitsTableTableManager
                 createdAtMs: createdAtMs,
                 updatedAtMs: updatedAtMs,
                 deletedAtMs: deletedAtMs,
+                sortOrder: sortOrder,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3666,6 +3731,7 @@ class $$HabitsTableTableManager
                 required int createdAtMs,
                 required int updatedAtMs,
                 Value<int?> deletedAtMs = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => HabitsCompanion.insert(
                 id: id,
@@ -3684,6 +3750,7 @@ class $$HabitsTableTableManager
                 createdAtMs: createdAtMs,
                 updatedAtMs: updatedAtMs,
                 deletedAtMs: deletedAtMs,
+                sortOrder: sortOrder,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

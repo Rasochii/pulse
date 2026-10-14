@@ -276,6 +276,49 @@ void main() {
     expect(await db.reassignUserData(from: 'local', to: 'conta'), isFalse);
   });
 
+  test('ordem: hábito novo entra no fim e a reordenação vale na lista e no checklist',
+      () async {
+    await createHabit(name: 'Caminhar');
+    await createHabit(name: 'Água');
+    await createHabit(name: 'Ler');
+    List<String> names(List<Habit> hs) => hs.map((h) => h.name).toList();
+
+    // Sem reordenar: ordem de criação, não alfabética.
+    expect(names(await db.habitsForUser('user')), ['Caminhar', 'Água', 'Ler']);
+
+    final habits = await db.habitsForUser('user');
+    for (final o in await db.pendingOutbox(limit: 1000)) {
+      await db.deleteOutbox(o.id);
+    }
+    await repo.reorderHabits([habits[2], habits[0], habits[1]]);
+
+    expect(names(await db.habitsForUser('user')), ['Ler', 'Caminhar', 'Água']);
+    expect(
+      (await repo.todayRows('user', today)).map((r) => r.habit.name),
+      ['Ler', 'Caminhar', 'Água'],
+    );
+
+    // A ordem inteira sobe para a nuvem, com a posição de cada hábito.
+    final orders = <String, int>{};
+    for (final o in await db.pendingOutbox(limit: 1000)) {
+      if (o.entity != 'habit') continue;
+      final p = jsonDecode(o.payloadJson) as Map<String, dynamic>;
+      orders[p['name'] as String] = p['sort_order'] as int;
+    }
+    expect(orders, {'Ler': 0, 'Caminhar': 1, 'Água': 2});
+
+    // Editar um hábito não perde a posição.
+    final ler = (await db.habitsForUser('user')).first;
+    await repo.updateHabitFull(
+      habit: ler,
+      name: 'Ler 10 páginas',
+      iconKey: ler.iconKey,
+      colorArgb: ler.colorArgb,
+      weekdaysBitmask: ler.weekdaysBitmask,
+    );
+    expect((await db.habitsForUser('user')).first.name, 'Ler 10 páginas');
+  });
+
   test('pendências contam só as alterações do próprio usuário', () async {
     final h = await createHabit();
     await repo.toggleCompletion(habit: h, day: today);
