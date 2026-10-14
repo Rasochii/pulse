@@ -93,3 +93,18 @@ for all using (auth.uid() = user_id);
 
 create policy "profiles_own" on public.profiles
 for all using (auth.uid() = id);
+
+-- Versão mínima/recomendada do app (ver docs/migrations/2026-10-05_app_config.sql).
+create table if not exists public.app_config (
+  platform text primary key check (platform in ('android', 'ios')),
+  min_build int not null default 0,
+  recommended_build int not null default 0,
+  store_url text,
+  updated_at timestamptz not null default now()
+);
+alter table public.app_config enable row level security;
+create policy "app_config_read" on public.app_config
+for select to anon, authenticated using (true);
+insert into public.app_config (platform)
+values ('android'), ('ios')
+on conflict (platform) do nothing;
