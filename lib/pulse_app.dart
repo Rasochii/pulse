@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/theme/light_theme.dart';
+import 'core/update/update_gate.dart';
 import 'features/auth/presentation/reset_password_screen.dart';
 import 'features/habits/presentation/app_shell_screen.dart';
 import 'features/settings/presentation/theme_provider.dart';
@@ -102,7 +103,7 @@ class _PulseAppState extends ConsumerState<PulseApp> {
       builder: (context, child) {
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: overlayStyle,
-          child: child ?? const SizedBox.shrink(),
+          child: UpdateGate(child: child ?? const SizedBox.shrink()),
         );
       },
     );

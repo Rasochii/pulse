@@ -275,6 +275,16 @@ flutter build apk --release \
 
 <br/>
 
+## Atualização obrigatória
+
+O app compara o próprio número de build (o `+N` de `version:` no `pubspec.yaml`) com a tabela `app_config` do Supabase ([`docs/migrations/2026-10-05_app_config.sql`](docs/migrations/2026-10-05_app_config.sql)):
+
+- **`min_build`:** abaixo disso, o app mostra uma tela de bloqueio com o botão "Atualizar".
+- **`recommended_build`:** abaixo disso, só um aviso que dá para dispensar.
+- **`0` desliga a regra.** `store_url` é opcional no Android (o link da Play é montado pelo pacote) e necessário no iOS.
+
+Para forçar a atualização depois de um bug urgente: aumente o `+N` a cada release, publique a correção na loja e, quando ela estiver disponível, suba `min_build` para o build corrigido no Table Editor do Supabase. Sem internet, vale o último valor que o app viu; a falta de conexão sozinha nunca bloqueia. A web não passa por isso, porque cada deploy já entrega a versão nova.
+
 ## Versão web (PWA)
 
 O app roda no navegador e pode ser instalado como PWA. Diferenças em relação ao app instalado: **não há lembretes** e o login com Google é por redirecionamento.
