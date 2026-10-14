@@ -26,6 +26,7 @@ Habit _habit(
       reminderTimesJson: jsonEncode(times),
       createdAtMs: 0,
       updatedAtMs: 0,
+      sortOrder: 0,
     );
 
 void main() {

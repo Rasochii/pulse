@@ -354,6 +354,8 @@ final class PulseSyncEngine {
     final reminderHour = (row['reminder_hour'] as num?)?.toInt();
     final reminderMinute = (row['reminder_minute'] as num?)?.toInt();
     final deletedAt = (row['deleted_at_ms'] as num?)?.toInt();
+    final sortOrder =
+        (row['sort_order'] as num?)?.toInt() ?? local?.sortOrder ?? 0;
 
     if (local == null) {
       await _db.insertHabit(
@@ -376,6 +378,7 @@ final class PulseSyncEngine {
           createdAtMs: created,
           updatedAtMs: ru,
           deletedAtMs: Value(deletedAt),
+          sortOrder: Value(sortOrder),
         ),
       );
     } else {
@@ -399,6 +402,7 @@ final class PulseSyncEngine {
           createdAtMs: Value(created),
           updatedAtMs: Value(ru),
           deletedAtMs: Value(deletedAt),
+          sortOrder: Value(sortOrder),
         ),
       );
     }

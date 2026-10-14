@@ -89,6 +89,7 @@ final class SyncOutboxWriter {
         'created_at_ms': habit.createdAtMs,
         'updated_at_ms': habit.updatedAtMs,
         'deleted_at_ms': deletedAtMs ?? habit.deletedAtMs,
+        'sort_order': habit.sortOrder,
       };
 
   Future<void> enqueueHabitUpsert(Habit habit) =>

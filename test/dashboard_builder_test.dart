@@ -14,6 +14,7 @@ Habit _habit(String id, {required DateTime createdAt}) => Habit(
       dailyTarget: 1,
       createdAtMs: createdAt.millisecondsSinceEpoch,
       updatedAtMs: createdAt.millisecondsSinceEpoch,
+      sortOrder: 0,
     );
 
 HabitCompletion _done(String habitId, DateTime day) => HabitCompletion(

@@ -17,6 +17,7 @@ Habit _habit({required DateTime createdAt, int mask = 0x7f}) => Habit(
       dailyTarget: 1,
       createdAtMs: createdAt.millisecondsSinceEpoch,
       updatedAtMs: createdAt.millisecondsSinceEpoch,
+      sortOrder: 0,
     );
 
 void main() {

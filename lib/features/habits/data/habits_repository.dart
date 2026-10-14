@@ -71,7 +71,10 @@ class HabitsRepository {
         ),
       );
     }
-    out.sort((a, b) => a.habit.name.compareTo(b.habit.name));
+    out.sort((a, b) {
+      final byOrder = a.habit.sortOrder.compareTo(b.habit.sortOrder);
+      return byOrder != 0 ? byOrder : a.habit.name.compareTo(b.habit.name);
+    });
     return out;
   }
 
@@ -89,6 +92,7 @@ class HabitsRepository {
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final id = _uuid.v4();
+    final sortOrder = await _db.nextHabitSortOrder(userId);
     await _db.insertHabit(
       HabitsCompanion.insert(
         id: id,
@@ -106,6 +110,7 @@ class HabitsRepository {
         reminderTimesJson: Value(reminderTimesJson),
         createdAtMs: now,
         updatedAtMs: now,
+        sortOrder: Value(sortOrder),
       ),
     );
     final row = await _db.habitById(id);
@@ -145,6 +150,7 @@ class HabitsRepository {
         createdAtMs: Value(habit.createdAtMs),
         updatedAtMs: Value(now),
         deletedAtMs: Value(habit.deletedAtMs),
+        sortOrder: Value(habit.sortOrder),
       ),
     );
     final row = await _db.habitById(habit.id);
@@ -186,6 +192,17 @@ class HabitsRepository {
         quantity: newTarget,
         updatedAtMs: nowMs,
       );
+    }
+  }
+
+  /// Grava a ordem da lista. Todos os hábitos sobem com carimbo novo para os outros
+  /// aparelhos receberem a ordem inteira, não só as posições que mudaram.
+  Future<void> reorderHabits(List<Habit> ordered) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (var i = 0; i < ordered.length; i++) {
+      await _db.setHabitSortOrder(ordered[i].id, i, now);
+      final row = await _db.habitById(ordered[i].id);
+      if (row != null) await _syncOutbox?.enqueueHabitUpsert(row);
     }
   }
 

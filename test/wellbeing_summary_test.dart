@@ -29,6 +29,7 @@ Habit _habitEveryDay() {
     dailyTarget: 1,
     createdAtMs: 0,
     updatedAtMs: 0,
+    sortOrder: 0,
   );
 }
 
