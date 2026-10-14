@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -11,8 +12,9 @@ import '../utils/date_key.dart';
 import '../../features/habits/domain/habit_reminder_times_codec.dart';
 import 'notification_permission.dart';
 import 'pulse_local_notifications.dart';
+import 'reminder_plan.dart';
 
-/// Agenda lembretes semanais por (hábito × dia da semana × horário) — Plano 7.
+/// Agenda os lembretes dos hábitos (ver [planHabitReminders]).
 final class PulseHabitNotificationScheduler {
   PulseHabitNotificationScheduler(this._db);
 
@@ -54,18 +56,6 @@ final class PulseHabitNotificationScheduler {
     await PulseLocalNotifications.plugin.cancelAll();
   }
 
-  int stableNotificationId({
-    required String habitId,
-    required int weekday,
-    required int slotIndex,
-  }) {
-    var h = 0;
-    for (final c in habitId.codeUnits) {
-      h = (h * 31 + c) & 0x7fffffff;
-    }
-    return (h ^ (weekday << 8) ^ (slotIndex << 16)) & 0x7fffffff;
-  }
-
   Future<void> rescheduleAll(String userId) {
     if (!kRemindersSupported) return Future<void>.value();
     final next = _queue.catchError((_) {}).then((_) => _rescheduleAll(userId));
@@ -102,94 +92,46 @@ final class PulseHabitNotificationScheduler {
       iOS: DarwinNotificationDetails(threadIdentifier: 'pulse_habit'),
     );
 
+
+    final withTimes = habits
+        .where((h) => decodeHabitReminderTimes(h.reminderTimesJson).isNotEmpty)
+        .toList();
     final todayKey = dateKeyFromDateTime(DateTime.now());
+    final doneToday = <String>{
+      for (final h in withTimes)
+        if (await _db.hasCompletion(h.id, todayKey)) h.id,
+    };
 
-    for (final habit in habits) {
-      final times =
-          decodeHabitReminderTimes(habit.reminderTimesJson);
-      if (times.isEmpty) continue;
+    final plan = planHabitReminders(
+      habits: withTimes,
+      doneTodayHabitIds: doneToday,
+      now: tz.TZDateTime.now(tz.local),
+      maxCount: defaultTargetPlatform == TargetPlatform.iOS
+          ? kMaxScheduledRemindersIos
+          : kMaxScheduledRemindersAndroid,
+    );
 
-      // Hábito já concluído hoje: os lembretes de hoje só voltam na semana que vem.
-      final doneToday = await _db.hasCompletion(habit.id, todayKey);
-
-      for (var s = 0; s < times.length; s++) {
-        final t = times[s];
-        for (var bit = 0; bit < 7; bit++) {
-          if ((habit.weekdaysBitmask & (1 << bit)) == 0) continue;
-          final weekdayDart = bit + DateTime.monday;
-          await _scheduleWeekly(
-            id: stableNotificationId(
-              habitId: habit.id,
-              weekday: weekdayDart,
-              slotIndex: s,
-            ),
-            title: habit.name,
-            body: 'Hora de registrar esse hábito.',
-            dow: weekdayDart,
-            hour: t.hour,
-            minute: t.minute,
-            details: details,
-            skipToday: doneToday,
-          );
-        }
+    for (final r in plan) {
+      try {
+        await PulseLocalNotifications.plugin.zonedSchedule(
+          r.id,
+          r.title,
+          'Hora de registrar esse hábito.',
+          r.firstFire,
+          details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          matchDateTimeComponents: switch (r.repeat) {
+            ReminderRepeat.daily => DateTimeComponents.time,
+            ReminderRepeat.weekly => DateTimeComponents.dayOfWeekAndTime,
+            ReminderRepeat.once => null,
+          },
+        );
+      } catch (e) {
+        // Um lembrete recusado não pode derrubar os demais.
+        developer.log('Lembrete ${r.id} não agendado: $e', name: 'PulseNotif');
       }
     }
-  }
-
-  tz.TZDateTime _nextInstanceFrom({
-    required int dow,
-    required int hour,
-    required int minute,
-    required bool skipToday,
-  }) {
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
-    );
-    while (scheduled.weekday != dow ||
-        scheduled.isBefore(now.subtract(const Duration(seconds: 1)))) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
-    final isToday = scheduled.year == now.year &&
-        scheduled.month == now.month &&
-        scheduled.day == now.day;
-    if (skipToday && isToday) {
-      scheduled = scheduled.add(const Duration(days: 7));
-    }
-    return scheduled;
-  }
-
-  Future<void> _scheduleWeekly({
-    required int id,
-    required String title,
-    required String body,
-    required int dow,
-    required int hour,
-    required int minute,
-    required NotificationDetails details,
-    required bool skipToday,
-  }) async {
-    final when = _nextInstanceFrom(
-      dow: dow,
-      hour: hour,
-      minute: minute,
-      skipToday: skipToday,
-    );
-    await PulseLocalNotifications.plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      when,
-      details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-    );
   }
 }
