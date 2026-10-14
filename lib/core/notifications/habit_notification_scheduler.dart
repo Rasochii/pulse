@@ -51,30 +51,6 @@ final class PulseHabitNotificationScheduler {
     await mac?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
-  /// Lembrete avulso daqui a [delay], pelo mesmo caminho dos lembretes reais
-  /// (alarme do sistema). Serve para conferir permissão e economia de bateria.
-  Future<void> scheduleTestReminder({
-    Duration delay = const Duration(minutes: 1),
-  }) async {
-    if (!kRemindersSupported) return;
-    await PulseLocalNotifications.ensureInitialized();
-    await initTimeZone();
-    await _ensureChannel();
-    await PulseLocalNotifications.plugin.zonedSchedule(
-      _testReminderId,
-      'Lembrete de teste',
-      'Se você está vendo isto, os lembretes do Pulse funcionam neste aparelho.',
-      tz.TZDateTime.now(tz.local).add(delay),
-      _details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
-  }
-
-  /// Fora da faixa dos lembretes dos hábitos (ids 0…[kMaxScheduledRemindersAndroid]).
-  static const _testReminderId = 999999;
-
   static const _channelId = 'pulse_habit_reminders_v1';
 
   static const _details = NotificationDetails(

@@ -79,29 +79,6 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     return ok == true;
   }
 
-  Future<void> _sendTestReminder() async {
-    try {
-      await ref
-          .read(pulseHabitNotificationSchedulerProvider)
-          .scheduleTestReminder();
-      if (!mounted) return;
-      showPulseSnackBar(
-        context,
-        'Um lembrete de teste deve chegar em 1 a 2 minutos, mesmo com o app '
-        'fechado. Se não chegar, libere o Pulse na economia de bateria do aparelho.',
-        kind: PulseSnackKind.neutral,
-      );
-    } catch (e) {
-      if (mounted) {
-        showPulseSnackBar(
-          context,
-          friendlyError(e, 'Não foi possível agendar o teste.'),
-          kind: PulseSnackKind.error,
-        );
-      }
-    }
-  }
-
   Future<void> _signOut() async {
     if (_signingOut) return;
     if (!await _confirmPendingBeforeSignOut()) return;
@@ -341,10 +318,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                           : 'Notificações bloqueadas — toque para ativar.',
                     ),
                     trailing: allowed
-                        ? TextButton(
-                            onPressed: _sendTestReminder,
-                            child: const Text('Testar'),
-                          )
+                        ? null
                         : const Icon(Icons.chevron_right_rounded),
                     onTap: allowed ? null : enable,
                   ),
