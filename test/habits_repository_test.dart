@@ -4,7 +4,9 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pulse/core/database/app_database.dart';
+import 'package:pulse/core/sync/pulse_sync_engine.dart';
 import 'package:pulse/core/sync/sync_outbox_writer.dart';
+import 'package:pulse/core/sync/sync_watermark_store.dart';
 import 'package:pulse/core/utils/date_key.dart';
 import 'package:pulse/features/gamification/data/gamification_coordinator.dart';
 import 'package:pulse/features/gamification/domain/achievement_defs.dart';
@@ -272,6 +274,17 @@ void main() {
 
     // Nada para passar numa segunda vez.
     expect(await db.reassignUserData(from: 'local', to: 'conta'), isFalse);
+  });
+
+  test('pendências contam só as alterações do próprio usuário', () async {
+    final h = await createHabit();
+    await repo.toggleCompletion(habit: h, day: today);
+    final engine = PulseSyncEngine(db, SyncWatermarkStore());
+    final mine = await engine.pendingCount('user');
+    // Hábito, conclusão e snapshot de gamificação.
+    expect(mine, (await db.pendingOutbox()).length);
+    expect(mine, greaterThanOrEqualTo(2));
+    expect(await engine.pendingCount('outra-pessoa'), 0);
   });
 
   test('apagar check-in remove do aparelho e enfileira tombstone sem a nota',

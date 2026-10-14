@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,6 +53,8 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen>
     with WidgetsBindingObserver {
   int _index = 0;
   Timer? _midnightTimer;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  bool _wasOffline = false;
 
   void _selectTab(int i) {
     if (_index == i) return;
@@ -63,6 +66,16 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _armMidnightTimer();
+    // A conexão voltou com o app aberto: envia o que ficou na fila e baixa novidades.
+    _connectivitySub = Connectivity().onConnectivityChanged.listen(
+      (results) {
+        final offline =
+            results.isEmpty || results.every((r) => r == ConnectivityResult.none);
+        if (_wasOffline && !offline) _syncAndRefresh();
+        _wasOffline = offline;
+      },
+      onError: (_) {},
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final uid = ref.read(authRepositoryProvider).currentUserId;
       if (uid == null || uid.isEmpty) return;
@@ -85,6 +98,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _midnightTimer?.cancel();
+    _connectivitySub?.cancel();
     super.dispose();
   }
 
