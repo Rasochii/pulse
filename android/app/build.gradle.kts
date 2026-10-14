@@ -49,6 +49,11 @@ android {
 
     buildTypes {
         release {
+            // Regras do R8 para os lembretes (ver proguard-rules.pro).
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícone das notificações: o plugin o busca pelo nome, então o encolhimento de
+     recursos do release não pode descartá-lo. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@mipmap/pulse_logo" />
