@@ -194,7 +194,7 @@ Modelo JSON para copiar chaves: [`.vscode/flutter-dart-define.example.json`](.vs
 
 **Google Sign-In** (o botão só aparece com `GOOGLE_WEB_CLIENT_ID` definido):
 
-1. No Google Cloud, crie três clientes OAuth: **Web**, **Android** (pacote `com.pulse.app.pulse` + SHA-1 do keystore) e **iOS**.
+1. No Google Cloud, crie três clientes OAuth: **Web**, **Android** (pacote `com.rasochii.pulse` + SHA-1 do keystore) e **iOS**.
 2. No Supabase, em *Authentication → Providers → Google*, informe o client ID/secret do cliente **Web** (e adicione os IDs Android/iOS em *Authorized Client IDs*).
 3. Passe o client ID **Web** em `GOOGLE_WEB_CLIENT_ID` e o **iOS** em `GOOGLE_IOS_CLIENT_ID`.
 4. iOS: adicione o `REVERSED_CLIENT_ID` do cliente iOS em `CFBundleURLSchemes` no `ios/Runner/Info.plist`.
