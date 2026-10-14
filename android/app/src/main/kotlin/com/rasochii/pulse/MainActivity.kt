@@ -1,4 +1,4 @@
-package com.pulse.app.pulse
+package com.rasochii.pulse
 
 import io.flutter.embedding.android.FlutterActivity
 

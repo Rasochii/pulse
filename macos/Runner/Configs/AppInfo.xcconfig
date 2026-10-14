@@ -8,7 +8,7 @@
 PRODUCT_NAME = Pulse
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.pulse.app.pulse
+PRODUCT_BUNDLE_IDENTIFIER = com.rasochii.pulse
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.pulse.app. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Rasochii. All rights reserved.
