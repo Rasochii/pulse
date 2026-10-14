@@ -51,6 +51,57 @@ final class PulseHabitNotificationScheduler {
     await mac?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
+  /// Lembrete avulso daqui a [delay], pelo mesmo caminho dos lembretes reais
+  /// (alarme do sistema). Serve para conferir permissão e economia de bateria.
+  Future<void> scheduleTestReminder({
+    Duration delay = const Duration(minutes: 1),
+  }) async {
+    if (!kRemindersSupported) return;
+    await PulseLocalNotifications.ensureInitialized();
+    await initTimeZone();
+    await _ensureChannel();
+    await PulseLocalNotifications.plugin.zonedSchedule(
+      _testReminderId,
+      'Lembrete de teste',
+      'Se você está vendo isto, os lembretes do Pulse funcionam neste aparelho.',
+      tz.TZDateTime.now(tz.local).add(delay),
+      _details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  /// Fora da faixa dos lembretes dos hábitos (ids 0…[kMaxScheduledRemindersAndroid]).
+  static const _testReminderId = 999999;
+
+  static const _channelId = 'pulse_habit_reminders_v1';
+
+  static const _details = NotificationDetails(
+    android: AndroidNotificationDetails(
+      _channelId,
+      'Lembretes de hábitos',
+      channelDescription:
+          'Lembretes semanais alinhados aos dias onde o hábito está ativo.',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+    ),
+    iOS: DarwinNotificationDetails(threadIdentifier: 'pulse_habit'),
+  );
+
+  Future<void> _ensureChannel() async {
+    const androidChan = AndroidNotificationChannel(
+      _channelId,
+      'Lembretes de hábitos',
+      description: 'Horários configurados nos seus hábitos.',
+      importance: Importance.defaultImportance,
+    );
+    await PulseLocalNotifications.plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(androidChan);
+  }
+
   Future<void> cancelAllForPulse() async {
     if (!kRemindersSupported) return;
     await PulseLocalNotifications.plugin.cancelAll();
@@ -69,29 +120,7 @@ final class PulseHabitNotificationScheduler {
     await cancelAllForPulse();
 
     final habits = await _db.habitsForUser(userId);
-    const androidChan = AndroidNotificationChannel(
-      'pulse_habit_reminders_v1',
-      'Lembretes de hábitos',
-      description: 'Horários configurados nos seus hábitos.',
-      importance: Importance.defaultImportance,
-    );
-    await PulseLocalNotifications.plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(androidChan);
-
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'pulse_habit_reminders_v1',
-        'Lembretes de hábitos',
-        channelDescription:
-            'Lembretes semanais alinhados aos dias onde o hábito está ativo.',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-      ),
-      iOS: DarwinNotificationDetails(threadIdentifier: 'pulse_habit'),
-    );
-
+    await _ensureChannel();
 
     final withTimes = habits
         .where((h) => decodeHabitReminderTimes(h.reminderTimesJson).isNotEmpty)
@@ -118,7 +147,7 @@ final class PulseHabitNotificationScheduler {
           r.title,
           'Hora de registrar esse hábito.',
           r.firstFire,
-          details,
+          _details,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,

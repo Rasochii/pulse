@@ -32,25 +32,23 @@ String encodeHabitReminderTimes(List<TimeOfDay> times) {
 }
 
 /// Distribui [count] horários entre [start] e [end] (inclusive).
+///
+/// [end] antes de [start] atravessa a meia-noite: 10:00 até 00:00 vai das 10h
+/// à meia-noite, 22:00 até 02:00 cobre a madrugada.
 List<TimeOfDay> spreadRemindersBetween({
   required int count,
   required TimeOfDay start,
   required TimeOfDay end,
 }) {
   if (count < 1) return [];
-  var a = start.hour * 60 + start.minute;
+  const day = 24 * 60;
+  final a = start.hour * 60 + start.minute;
   var b = end.hour * 60 + end.minute;
-  if (b < a) {
-    final t = a;
-    a = b;
-    b = t;
-  }
+  if (b < a) b += day;
   final out = <TimeOfDay>[];
   for (var i = 0; i < count; i++) {
     final frac = count == 1 ? 0.5 : i / (count - 1);
-    var m = (a + (b - a) * frac).round();
-    if (m < a) m = a;
-    if (m > b) m = b;
+    final m = (a + (b - a) * frac).round().clamp(a, b) % day;
     out.add(TimeOfDay(hour: m ~/ 60, minute: m % 60));
   }
   return out;
