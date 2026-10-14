@@ -85,6 +85,33 @@ void main() {
         isEmpty,
       );
     });
+
+    test('fim antes do início atravessa a meia-noite', () {
+      expect(
+        spreadRemindersBetween(
+          count: 3,
+          start: const TimeOfDay(hour: 10, minute: 0),
+          end: const TimeOfDay(hour: 0, minute: 0),
+        ),
+        const [
+          TimeOfDay(hour: 10, minute: 0),
+          TimeOfDay(hour: 17, minute: 0),
+          TimeOfDay(hour: 0, minute: 0),
+        ],
+      );
+      expect(
+        spreadRemindersBetween(
+          count: 3,
+          start: const TimeOfDay(hour: 22, minute: 0),
+          end: const TimeOfDay(hour: 2, minute: 0),
+        ),
+        const [
+          TimeOfDay(hour: 22, minute: 0),
+          TimeOfDay(hour: 0, minute: 0),
+          TimeOfDay(hour: 2, minute: 0),
+        ],
+      );
+    });
   });
 
   group('meta diária', () {

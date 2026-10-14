@@ -53,7 +53,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
   late final TextEditingController _category;
   late final TextEditingController _target;
   late final TextEditingController _targetUnit;
-  late final TextEditingController _spreadCount;
+  int _spreadCount = 3;
+  bool _spreadCountTouched = false;
+  bool _spreadMode = false;
 
   late String _iconKey;
   late int _colorArgb;
@@ -82,7 +84,6 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
       text: formatGoalNumber(h?.dailyTarget ?? 1),
     );
     _targetUnit = TextEditingController(text: h?.dailyTargetUnit ?? '');
-    _spreadCount = TextEditingController(text: '3');
     _iconKey = h?.iconKey ?? 'task_alt';
     _colorArgb = h?.colorArgb ?? _kAccentColors.first;
     _weekdays =
@@ -118,7 +119,6 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     _category.dispose();
     _target.dispose();
     _targetUnit.dispose();
-    _spreadCount.dispose();
     super.dispose();
   }
 
@@ -186,38 +186,163 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     setState(() => _reminderTimes.removeAt(i));
   }
 
-  void _applySpread() {
-    final n = int.tryParse(_spreadCount.text.trim());
-    if (n == null || n < 1) {
-      showPulseSnackBar(
-        context,
-        'Informe quantos lembretes (número inteiro ≥ 1).',
-        kind: PulseSnackKind.error,
-      );
-      return;
-    }
-    if (n > _kMaxReminderSlots) {
-      showPulseSnackBar(
-        context,
-        'No máximo $_kMaxReminderSlots lembretes.',
-        kind: PulseSnackKind.error,
-      );
-      return;
-    }
+  bool get _spreadEndsNextDay =>
+      _spreadEnd.hour * 60 + _spreadEnd.minute <
+      _spreadStart.hour * 60 + _spreadStart.minute;
+
+  /// Meta diária como número inteiro de vezes (0 se não for inteira).
+  int get _targetCount {
+    final t = double.tryParse(_target.text.replaceAll(',', '.'));
+    if (t == null || t != t.roundToDouble()) return 0;
+    return t.round().clamp(0, _kMaxReminderSlots);
+  }
+
+  /// No modo "espalhar", a lista de horários é gerada na hora a partir da
+  /// quantidade e do intervalo — é ela que o Salvar grava. Voltar para
+  /// "escolher horários" mantém a lista gerada para ajustes um a um.
+  void _setSpreadMode(bool on) {
     setState(() {
-      _reminderTimes = _dedupeSorted(
-        spreadRemindersBetween(
-          count: n,
-          start: _spreadStart,
-          end: _spreadEnd,
-        ),
-      );
-      _remindersOn = true;
+      _spreadMode = on;
+      if (!on) return;
+      if (!_spreadCountTouched && _targetCount >= 2) {
+        _spreadCount = _targetCount;
+      }
+      _regenerateSpread();
     });
-    showPulseSnackBar(
-      context,
-      'Horários atualizados — ajuste item a item se quiser.',
-      kind: PulseSnackKind.neutral,
+  }
+
+  void _updateSpread({int? count, TimeOfDay? start, TimeOfDay? end}) {
+    setState(() {
+      if (count != null) {
+        _spreadCount = count.clamp(1, _kMaxReminderSlots);
+        _spreadCountTouched = true;
+      }
+      if (start != null) _spreadStart = start;
+      if (end != null) _spreadEnd = end;
+      _regenerateSpread();
+    });
+  }
+
+  void _regenerateSpread() {
+    _reminderTimes = _dedupeSorted(
+      spreadRemindersBetween(
+        count: _spreadCount,
+        start: _spreadStart,
+        end: _spreadEnd,
+      ),
+    );
+  }
+
+  Widget _buildSpreadPanel(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final secondary = text.bodySmall!.copyWith(color: PulseColors.textSecondary);
+
+    Widget timeButton(
+      String label,
+      TimeOfDay value,
+      void Function(TimeOfDay) onPicked,
+    ) =>
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onPressed: () async {
+            final t = await showTimePicker(context: context, initialTime: value);
+            if (t != null && mounted) onPicked(t);
+          },
+          child: Column(
+            children: [
+              Text(label, style: secondary),
+              Text(value.format(context), style: text.titleMedium),
+            ],
+          ),
+        );
+
+    return GlassPanel(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
+      borderRadius: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Quantos lembretes', style: text.titleSmall),
+              ),
+              IconButton.outlined(
+                tooltip: 'Menos',
+                onPressed: _spreadCount > 1
+                    ? () => _updateSpread(count: _spreadCount - 1)
+                    : null,
+                icon: const Icon(Icons.remove_rounded),
+              ),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  '$_spreadCount',
+                  textAlign: TextAlign.center,
+                  style: text.titleLarge,
+                ),
+              ),
+              IconButton.outlined(
+                tooltip: 'Mais',
+                onPressed: _spreadCount < _kMaxReminderSlots
+                    ? () => _updateSpread(count: _spreadCount + 1)
+                    : null,
+                icon: const Icon(Icons.add_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: timeButton(
+                    'Das',
+                    _spreadStart,
+                    (t) => _updateSpread(start: t),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: timeButton(
+                    _spreadEndsNextDay ? 'Até (dia seguinte)' : 'Até',
+                    _spreadEnd,
+                    (t) => _updateSpread(end: t),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            _reminderTimes.length == 1 ? 'Vai lembrar às' : 'Vai lembrar nestes horários',
+            style: secondary,
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final t in _reminderTimes)
+                Chip(
+                  label: Text(t.format(context)),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Quer mudar um horário específico? Toque em "Escolher horários".',
+            style: secondary.copyWith(fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
 
@@ -660,81 +785,70 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
                   );
                 },
               ),
-              for (var i = 0; i < _reminderTimes.length; i++)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        PulseColors.accent.withValues(alpha: .2),
-                    child: Text('${i + 1}',
-                        style:
-                            const TextStyle(color: PulseColors.accent, fontSize: 13)),
-                  ),
-                  title: Text(_reminderTimes[i].format(context)),
-                  trailing: IconButton(
-                    tooltip: 'Remover',
-                    onPressed: () => _removeReminderAt(i),
-                    icon: const Icon(Icons.remove_circle_outline_rounded),
-                  ),
-                  onTap: () => _pickReminderAt(i),
-                ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _addReminder,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Adicionar horário'),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      label: Text('Escolher horários'),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: Text('Espalhar no dia'),
+                    ),
+                  ],
+                  selected: {_spreadMode},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (s) => _setSpreadMode(s.first),
                 ),
               ),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: Text(
-                  'Gerar vários lembretes no intervalo',
-                  style: Theme.of(context).textTheme.titleSmall,
+              const SizedBox(height: 12),
+              if (_spreadMode)
+                _buildSpreadPanel(context)
+              else ...[
+                for (var i = 0; i < _reminderTimes.length; i++)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          PulseColors.accent.withValues(alpha: .2),
+                      child: Text('${i + 1}',
+                          style: const TextStyle(
+                              color: PulseColors.accent, fontSize: 13)),
+                    ),
+                    title: Text(_reminderTimes[i].format(context)),
+                    trailing: IconButton(
+                      tooltip: 'Remover',
+                      onPressed: () => _removeReminderAt(i),
+                      icon: const Icon(Icons.remove_circle_outline_rounded),
+                    ),
+                    onTap: () => _pickReminderAt(i),
+                  ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _addReminder,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Adicionar horário'),
+                  ),
                 ),
-                childrenPadding: const EdgeInsets.only(bottom: 12),
-                children: [
-                  TextField(
-                    controller: _spreadCount,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(
-                      labelText: 'Quantos lembretes',
-                      helperText:
-                          'Ex.: copos de água = 8 distribui vários pings no dia.',
+                // Meta de vários por dia (ex.: 8 copos) com poucos horários:
+                // lembra que dá para espalhar sem montar a lista na mão.
+                if (_targetCount >= 2 && _reminderTimes.length < _targetCount)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => _setSpreadMode(true),
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: Text(
+                        'Meta de $_targetCount por dia? '
+                        'Espalhar $_targetCount lembretes',
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('Entre ${_spreadStart.format(context)}'),
-                    trailing: TextButton(
-                      onPressed: () async {
-                        final t =
-                            await showTimePicker(context: context, initialTime: _spreadStart);
-                        if (t != null) setState(() => _spreadStart = t);
-                      },
-                      child: const Text('Início'),
-                    ),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('E ${_spreadEnd.format(context)}'),
-                    trailing: TextButton(
-                      onPressed: () async {
-                        final t =
-                            await showTimePicker(context: context, initialTime: _spreadEnd);
-                        if (t != null) setState(() => _spreadEnd = t);
-                      },
-                      child: const Text('Fim'),
-                    ),
-                  ),
-                  FilledButton(
-                    onPressed: _applySpread,
-                    child: const Text('Preencher lista de horários'),
-                  ),
-                ],
-              ),
+              ],
             ],
             ],
             Padding(
