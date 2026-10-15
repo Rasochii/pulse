@@ -919,7 +919,7 @@ class _SpreadRemindersSheetState extends State<_SpreadRemindersSheet> {
               Text(
                 'Aplicar substitui '
                 '${widget.currentTimes.length == 1 ? 'o horário' : 'os ${widget.currentTimes.length} horários'} '
-                'da sua lista. Depois dá para ajustar cada um.',
+                'da sua lista. Os horários podem ser ajustados manualmente posteriormente.',
                 style: secondary.copyWith(fontSize: 12),
               ),
               const SizedBox(height: 8),
