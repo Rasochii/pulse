@@ -22,6 +22,15 @@ abstract final class AppEnv {
     defaultValue: '',
   );
 
+  /// DSN do projeto no Sentry (relatório de falhas). Não é segredo; vazio
+  /// desliga o envio.
+  static const String sentryDsn = String.fromEnvironment(
+    'SENTRY_DSN',
+    defaultValue: '',
+  );
+
+  static bool get hasSentry => sentryDsn.trim().isNotEmpty;
+
   static bool get hasSupabase =>
       supabaseUrl.trim().isNotEmpty && supabaseAnonKey.trim().isNotEmpty;
 
