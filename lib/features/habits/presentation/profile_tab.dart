@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/config/app_links.dart';
 import '../../../core/notifications/notification_permission.dart';
 import '../../../core/presentation/friendly_error.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
@@ -491,6 +492,20 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                         ),
                     ],
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              GlassPanel(
+                padding: const EdgeInsets.all(4),
+                child: ListTile(
+                  leading: Icon(
+                    Icons.privacy_tip_outlined,
+                    color: PulseColors.accent,
+                  ),
+                  title: const Text('Política de privacidade'),
+                  subtitle: const Text('Quais dados o Pulse guarda e como.'),
+                  trailing: const Icon(Icons.open_in_new_rounded, size: 20),
+                  onTap: () => openExternalLink(AppLinks.privacyPolicy),
                 ),
               ),
               if (canDeleteRemote) ...[

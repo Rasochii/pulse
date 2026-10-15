@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/config/app_links.dart';
 import '../../../core/config/app_env.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
@@ -410,7 +411,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   .copyWith(color: PulseColors.textSecondary),
                             ),
                           ],
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () =>
+                                openExternalLink(AppLinks.privacyPolicy),
+                            child: const Text('Política de privacidade'),
+                          ),
+                          const SizedBox(height: 16),
                         ],
                       ),
                     ),
