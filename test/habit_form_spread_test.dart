@@ -8,7 +8,7 @@ void main() {
   testWidgets(
     'espalhar lembretes: sugere pela meta, gera os horários e cabe em 360 px',
     (tester) async {
-      tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+      tester.view.physicalSize = const Size(360 * 3, 2400 * 3);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
@@ -47,6 +47,30 @@ void main() {
       await tester.tap(find.byTooltip('Mais'));
       await tester.pumpAndSettle();
       expect(find.byType(Chip), findsNWidgets(9));
+
+      // Voltar para "escolher horários" mostra a lista manual intacta.
+      final removeIcon = find.byIcon(
+        Icons.remove_circle_outline_rounded,
+        skipOffstage: false,
+      );
+      await tester.tap(find.text('Escolher horários'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Chip), findsNothing);
+      expect(removeIcon, findsOneWidget);
+      expect(find.text('9:00 AM'), findsOneWidget);
+
+      // Ida e volta não regenera nada; "ajustar um a um" leva os gerados.
+      await tester.tap(find.text('Espalhar no dia'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Chip), findsNWidgets(9));
+      await tester.scrollUntilVisible(
+        find.text('Ajustar estes horários um a um'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Ajustar estes horários um a um'));
+      await tester.pumpAndSettle();
+      expect(removeIcon, findsNWidgets(9));
     },
   );
 }

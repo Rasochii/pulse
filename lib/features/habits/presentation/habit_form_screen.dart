@@ -15,6 +15,7 @@ import '../../insights/presentation/insights_providers.dart';
 import '../domain/habit_daily_goal_display.dart';
 import '../domain/habit_reminder_times_codec.dart';
 import '../domain/pulse_habit_icons.dart';
+
 const List<int> _kAccentColors = [
   0xFF7C83FF,
   0xFF4ADE80,
@@ -60,7 +61,12 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
   late String _iconKey;
   late int _colorArgb;
   late Set<int> _weekdays;
+
+  /// Horários escolhidos à mão (modo "escolher horários").
   late List<TimeOfDay> _reminderTimes;
+
+  /// Horários gerados no modo "espalhar no dia".
+  List<TimeOfDay> _spreadTimes = const [];
   bool _remindersOn = false;
   TimeOfDay _spreadStart = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay _spreadEnd = const TimeOfDay(hour: 21, minute: 0);
@@ -86,8 +92,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     _targetUnit = TextEditingController(text: h?.dailyTargetUnit ?? '');
     _iconKey = h?.iconKey ?? 'task_alt';
     _colorArgb = h?.colorArgb ?? _kAccentColors.first;
-    _weekdays =
-        h == null ? _kWeekdays.toSet() : _decodeWeekdays(h.weekdaysBitmask);
+    _weekdays = h == null
+        ? _kWeekdays.toSet()
+        : _decodeWeekdays(h.weekdaysBitmask);
 
     var times = decodeHabitReminderTimes(h?.reminderTimesJson);
     if (times.isEmpty && h != null) {
@@ -197,9 +204,8 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     return t.round().clamp(0, _kMaxReminderSlots);
   }
 
-  /// No modo "espalhar", a lista de horários é gerada na hora a partir da
-  /// quantidade e do intervalo — é ela que o Salvar grava. Voltar para
-  /// "escolher horários" mantém a lista gerada para ajustes um a um.
+  /// Os dois modos têm listas próprias: entrar em "espalhar" não mexe nos
+  /// horários escolhidos à mão. O Salvar grava a lista do modo selecionado.
   void _setSpreadMode(bool on) {
     setState(() {
       _spreadMode = on;
@@ -223,8 +229,31 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     });
   }
 
+  List<TimeOfDay> get _activeTimes =>
+      _spreadMode ? _spreadTimes : _reminderTimes;
+
+  /// A lista manual tem horários diferentes dos gerados (vale avisar antes de
+  /// trocar). Um único horário padrão de 9h não conta como escolha.
+  bool get _spreadReplacesManual {
+    final manual = _dedupeSorted(_reminderTimes);
+    if (manual.length == 1 &&
+        manual.first == const TimeOfDay(hour: 9, minute: 0)) {
+      return false;
+    }
+    return encodeHabitReminderTimes(manual) !=
+        encodeHabitReminderTimes(_spreadTimes);
+  }
+
+  /// Leva os horários gerados para a lista manual, para ajustar um a um.
+  void _editSpreadTimesManually() {
+    setState(() {
+      _reminderTimes = [..._spreadTimes];
+      _spreadMode = false;
+    });
+  }
+
   void _regenerateSpread() {
-    _reminderTimes = _dedupeSorted(
+    _spreadTimes = _dedupeSorted(
       spreadRemindersBetween(
         count: _spreadCount,
         start: _spreadStart,
@@ -235,31 +264,30 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
 
   Widget _buildSpreadPanel(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final secondary = text.bodySmall!.copyWith(color: PulseColors.textSecondary);
+    final secondary = text.bodySmall!.copyWith(
+      color: PulseColors.textSecondary,
+    );
 
     Widget timeButton(
       String label,
       TimeOfDay value,
       void Function(TimeOfDay) onPicked,
-    ) =>
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          onPressed: () async {
-            final t = await showTimePicker(context: context, initialTime: value);
-            if (t != null && mounted) onPicked(t);
-          },
-          child: Column(
-            children: [
-              Text(label, style: secondary),
-              Text(value.format(context), style: text.titleMedium),
-            ],
-          ),
-        );
+    ) => OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      onPressed: () async {
+        final t = await showTimePicker(context: context, initialTime: value);
+        if (t != null && mounted) onPicked(t);
+      },
+      child: Column(
+        children: [
+          Text(label, style: secondary),
+          Text(value.format(context), style: text.titleMedium),
+        ],
+      ),
+    );
 
     return GlassPanel(
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
@@ -321,7 +349,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
           ),
           const SizedBox(height: 14),
           Text(
-            _reminderTimes.length == 1 ? 'Vai lembrar às' : 'Vai lembrar nestes horários',
+            _spreadTimes.length == 1
+                ? 'Vai lembrar às'
+                : 'Vai lembrar nestes horários',
             style: secondary,
           ),
           const SizedBox(height: 6),
@@ -329,17 +359,29 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              for (final t in _reminderTimes)
+              for (final t in _spreadTimes)
                 Chip(
                   label: Text(t.format(context)),
                   visualDensity: VisualDensity.compact,
                 ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Quer mudar um horário específico? Toque em "Escolher horários".',
-            style: secondary.copyWith(fontSize: 12),
+          if (_spreadReplacesManual) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Ao salvar neste modo, estes horários substituem os '
+              '${_reminderTimes.length} que você escolheu. Para manter os seus, '
+              'volte para "Escolher horários".',
+              style: secondary.copyWith(fontSize: 12),
+            ),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _editSpreadTimesManually,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Ajustar estes horários um a um'),
+            ),
           ),
         ],
       ),
@@ -361,7 +403,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
       return;
     }
 
-    if (_remindersOn && _reminderTimes.isEmpty) {
+    if (_remindersOn && _activeTimes.isEmpty) {
       showPulseSnackBar(
         context,
         'Adicione pelo menos um horário de lembrete.',
@@ -376,8 +418,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     final catText = _category.text.trim();
     final category = catText.isEmpty ? null : catText;
     final targetParsed = double.tryParse(_target.text.replaceAll(',', '.'));
-    final dailyTarget =
-        targetParsed != null && targetParsed > 0 ? targetParsed : 1.0;
+    final dailyTarget = targetParsed != null && targetParsed > 0
+        ? targetParsed
+        : 1.0;
 
     final unitText = _targetUnit.text.trim();
     final dailyTargetUnit = unitText.isEmpty ? null : unitText;
@@ -385,7 +428,7 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     final bitmask = _encodeWeekdays(_weekdays);
     String? reminderJson;
     if (_remindersOn) {
-      final sorted = _dedupeSorted(_reminderTimes);
+      final sorted = _dedupeSorted(_activeTimes);
       if (sorted.isEmpty) {
         showPulseSnackBar(
           context,
@@ -428,7 +471,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
         );
       }
       try {
-        await ref.read(pulseHabitNotificationSchedulerProvider).rescheduleAll(uid);
+        await ref
+            .read(pulseHabitNotificationSchedulerProvider)
+            .rescheduleAll(uid);
         await ref.read(pulseSyncEngineProvider).flushOutbox(uid);
       } catch (_) {}
       ref.invalidate(dashboardSnapshotProvider);
@@ -451,7 +496,8 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
   Future<void> _delete() async {
     final h = widget.habit;
     if (h == null) return;
-    final ok = await showDialog<bool>(
+    final ok =
+        await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Excluir hábito?'),
@@ -460,8 +506,10 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
               'suas estatísticas. Esta ação não pode ser desfeita.',
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancelar')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 child: const Text('Excluir'),
@@ -476,7 +524,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
       try {
         final u = ref.read(authRepositoryProvider).currentUserId;
         if (u != null) {
-          await ref.read(pulseHabitNotificationSchedulerProvider).rescheduleAll(u);
+          await ref
+              .read(pulseHabitNotificationSchedulerProvider)
+              .rescheduleAll(u);
           await ref.read(pulseSyncEngineProvider).flushOutbox(u);
         }
       } catch (_) {}
@@ -552,26 +602,25 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
             const SizedBox(height: 20),
             Text(
               'Meta do dia',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall!
-                  .copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+              style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               'O valor é sempre numérico; a unidade explica o contexto '
               '(km, copos, minutos, páginas…).',
               style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                    color: PulseColors.textSecondary,
-                    fontSize: 12,
-                  ),
+                color: PulseColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _target,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
               ],
@@ -605,9 +654,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
               child: Text(
                 'Ex.: km, km/dia, copos, min, páginas, repetições',
                 style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                      color: PulseColors.textSecondary,
-                      fontSize: 11,
-                    ),
+                  color: PulseColors.textSecondary,
+                  fontSize: 11,
+                ),
               ),
             ),
             const SizedBox(height: 6),
@@ -619,18 +668,15 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
                     : _targetUnit.text.trim(),
               ),
               style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                    color: PulseColors.accent.withValues(alpha: 0.85),
-                  ),
+                color: PulseColors.accent.withValues(alpha: 0.85),
+              ),
             ),
             const SizedBox(height: 22),
             Text(
               'Dias da semana',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall!
-                  .copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+              style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -657,12 +703,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
             const SizedBox(height: 22),
             Text(
               'Ícone',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall!
-                  .copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+              style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 10),
             SingleChildScrollView(
@@ -684,12 +727,9 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
             const SizedBox(height: 22),
             Text(
               'Cor',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall!
-                  .copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+              style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 10),
             Row(
@@ -725,131 +765,133 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
             ),
             // No navegador não há lembretes; os horários já salvos são preservados.
             if (kRemindersSupported) ...[
-            const SizedBox(height: 22),
-            Text(
-              'Lembretes no dia',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall!
-                  .copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Vários horários no mesmo dia — ideal para hábitos que se repetem.',
-              style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                    color: PulseColors.textSecondary,
-                    fontSize: 12,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Ativar lembretes neste hábito'),
-              value: _remindersOn,
-              onChanged: (v) {
-                setState(() {
-                  _remindersOn = v;
-                  if (v && _reminderTimes.isEmpty) {
-                    _reminderTimes = [const TimeOfDay(hour: 9, minute: 0)];
-                  }
-                });
-              },
-            ),
-            if (_remindersOn) ...[
-              NotificationPermissionBuilder(
-                builder: (context, allowed, enable) {
-                  if (allowed) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: GlassPanel(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
-                      borderRadius: 14,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'As notificações do Pulse estão bloqueadas neste '
-                            'aparelho. Enquanto estiverem assim, os lembretes '
-                            'não tocam.',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          TextButton(
-                            onPressed: enable,
-                            child: const Text('Ativar notificações'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+              const SizedBox(height: 22),
+              Text(
+                'Lembretes no dia',
+                style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 4),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(
-                      value: false,
-                      label: Text('Escolher horários'),
-                    ),
-                    ButtonSegment(
-                      value: true,
-                      label: Text('Espalhar no dia'),
-                    ),
-                  ],
-                  selected: {_spreadMode},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => _setSpreadMode(s.first),
+              Text(
+                'Vários horários no mesmo dia — ideal para hábitos que se repetem.',
+                style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                  color: PulseColors.textSecondary,
+                  fontSize: 12,
                 ),
               ),
-              const SizedBox(height: 12),
-              if (_spreadMode)
-                _buildSpreadPanel(context)
-              else ...[
-                for (var i = 0; i < _reminderTimes.length; i++)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor:
-                          PulseColors.accent.withValues(alpha: .2),
-                      child: Text('${i + 1}',
-                          style: const TextStyle(
-                              color: PulseColors.accent, fontSize: 13)),
-                    ),
-                    title: Text(_reminderTimes[i].format(context)),
-                    trailing: IconButton(
-                      tooltip: 'Remover',
-                      onPressed: () => _removeReminderAt(i),
-                      icon: const Icon(Icons.remove_circle_outline_rounded),
-                    ),
-                    onTap: () => _pickReminderAt(i),
-                  ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: _addReminder,
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Adicionar horário'),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Ativar lembretes neste hábito'),
+                value: _remindersOn,
+                onChanged: (v) {
+                  setState(() {
+                    _remindersOn = v;
+                    if (v && _reminderTimes.isEmpty) {
+                      _reminderTimes = [const TimeOfDay(hour: 9, minute: 0)];
+                    }
+                  });
+                },
+              ),
+              if (_remindersOn) ...[
+                NotificationPermissionBuilder(
+                  builder: (context, allowed, enable) {
+                    if (allowed) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: GlassPanel(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                        borderRadius: 14,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'As notificações do Pulse estão bloqueadas neste '
+                              'aparelho. Enquanto estiverem assim, os lembretes '
+                              'não tocam.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            TextButton(
+                              onPressed: enable,
+                              child: const Text('Ativar notificações'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: false,
+                        label: Text('Escolher horários'),
+                      ),
+                      ButtonSegment(
+                        value: true,
+                        label: Text('Espalhar no dia'),
+                      ),
+                    ],
+                    selected: {_spreadMode},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (s) => _setSpreadMode(s.first),
                   ),
                 ),
-                // Meta de vários por dia (ex.: 8 copos) com poucos horários:
-                // lembra que dá para espalhar sem montar a lista na mão.
-                if (_targetCount >= 2 && _reminderTimes.length < _targetCount)
+                const SizedBox(height: 12),
+                if (_spreadMode)
+                  _buildSpreadPanel(context)
+                else ...[
+                  for (var i = 0; i < _reminderTimes.length; i++)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: PulseColors.accent.withValues(
+                          alpha: .2,
+                        ),
+                        child: Text(
+                          '${i + 1}',
+                          style: const TextStyle(
+                            color: PulseColors.accent,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      title: Text(_reminderTimes[i].format(context)),
+                      trailing: IconButton(
+                        tooltip: 'Remover',
+                        onPressed: () => _removeReminderAt(i),
+                        icon: const Icon(Icons.remove_circle_outline_rounded),
+                      ),
+                      onTap: () => _pickReminderAt(i),
+                    ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
-                      onPressed: () => _setSpreadMode(true),
-                      icon: const Icon(Icons.auto_awesome_rounded),
-                      label: Text(
-                        'Meta de $_targetCount por dia? '
-                        'Espalhar $_targetCount lembretes',
-                      ),
+                      onPressed: _addReminder,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Adicionar horário'),
                     ),
                   ),
+                  // Meta de vários por dia (ex.: 8 copos) com poucos horários:
+                  // lembra que dá para espalhar sem montar a lista na mão.
+                  if (_targetCount >= 2 && _reminderTimes.length < _targetCount)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => _setSpreadMode(true),
+                        icon: const Icon(Icons.auto_awesome_rounded),
+                        label: Text(
+                          'Meta de $_targetCount por dia? '
+                          'Espalhar $_targetCount lembretes',
+                        ),
+                      ),
+                    ),
+                ],
               ],
-            ],
             ],
             Padding(
               padding: const EdgeInsets.only(top: 8),
