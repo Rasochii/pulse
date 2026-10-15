@@ -1,7 +1,7 @@
 # Publica a versão web (PWA) no GitHub Pages.
 #
 # Configure uma vez em Settings › Secrets and variables › Actions:
-#   Variables: SUPABASE_URL, GOOGLE_WEB_CLIENT_ID (opcional)
+#   Variables: SUPABASE_URL, GOOGLE_WEB_CLIENT_ID (opcional), SENTRY_DSN (opcional)
 #   Secrets:   SUPABASE_ANON_KEY (a chave anon/publishable — nunca a service_role)
 # E em Settings › Pages, escolha "GitHub Actions" como fonte.
 name: Deploy web
@@ -44,12 +44,14 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
         run: |
           flutter build web --release \
             --base-href "/${{ github.event.repository.name }}/" \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=GOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID"
+            --dart-define=GOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID" \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN"
 
       - uses: actions/upload-pages-artifact@v3
         with:

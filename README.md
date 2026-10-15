@@ -177,6 +177,7 @@ O app funciona **sem** Supabase em **modo local**: não há login, os dados fica
 | `SUPABASE_ANON_KEY` | Chave **anon** ou **publishable** do projeto — a que o cliente pode expor |
 | `GOOGLE_WEB_CLIENT_ID` | Opcional. Client ID OAuth do tipo **Web** — habilita o botão "Continuar com Google" |
 | `GOOGLE_IOS_CLIENT_ID` | Opcional. Client ID OAuth do tipo **iOS** |
+| `SENTRY_DSN` | Opcional. DSN do projeto no Sentry — liga o relatório de falhas, só no build **release**. Não envia dados pessoais nem textos da tela; os valores de consultas ao banco são cortados das mensagens de erro |
 
 > Com Supabase configurado, a conta é opcional: "Continuar sem conta" no login usa o mesmo usuário fixo (`local`) e nada é enviado para a nuvem. Ao criar uma conta ou entrar (Perfil › "Criar conta ou entrar"), os dados do aparelho passam para a conta e sobem no sync seguinte.
 
@@ -270,7 +271,8 @@ keyPassword=...
 
 ```bash
 flutter build apk --release \
-  --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
+  --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... \
+  --dart-define=SENTRY_DSN=...
 ```
 
 <br/>
@@ -298,7 +300,7 @@ flutter build web --release --base-href /pulse/ \
 O deploy no GitHub Pages é feito por [`.github/workflows/deploy-web.yml`](.github/workflows/deploy-web.yml) a cada push em `main`. Configure uma vez:
 
 - **Settings › Pages:** fonte "GitHub Actions".
-- **Settings › Secrets and variables › Actions:** variáveis `SUPABASE_URL` e `GOOGLE_WEB_CLIENT_ID` (opcional), segredo `SUPABASE_ANON_KEY`. Os valores ficam embutidos no JavaScript publicado, então use só a chave anon/publishable.
+- **Settings › Secrets and variables › Actions:** variáveis `SUPABASE_URL`, `GOOGLE_WEB_CLIENT_ID` (opcional) e `SENTRY_DSN` (opcional), segredo `SUPABASE_ANON_KEY`. Os valores ficam embutidos no JavaScript publicado, então use só a chave anon/publishable.
 - **Supabase › Authentication › URL Configuration:** adicione o endereço do Pages às Redirect URLs.
 
 `web/sqlite3.wasm` e `web/drift_worker.js` vêm das releases de [sqlite3.dart](https://github.com/simolus3/sqlite3.dart/releases) e [drift](https://github.com/simolus3/drift/releases); ao atualizar esses pacotes, baixe os arquivos das versões correspondentes.

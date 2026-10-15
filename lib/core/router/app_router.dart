@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/login_screen.dart';
@@ -16,6 +17,8 @@ GoRouter createAppRouter({
 
   return GoRouter(
     navigatorKey: pulseRootNavigatorKey,
+    // Telas visitadas antes de uma falha (sem efeito se o Sentry estiver desligado).
+    observers: [SentryNavigatorObserver()],
     initialLocation: SplashGate.path,
     refreshListenable: refresh,
     redirect: (context, state) async {
