@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -21,12 +22,27 @@ Future<bool> pulseNotificationsAllowed() async {
   }
 }
 
-/// Pede a permissão; se o sistema não mostrar mais o pedido, abre os ajustes do app.
+/// Abre a tela de notificações do Pulse nos ajustes do aparelho (Android 8+);
+/// nos demais casos, a tela de ajustes do app.
+Future<void> openPulseNotificationSettings() async {
+  if (!kRemindersSupported) return;
+  try {
+    final opened = await const MethodChannel('pulse/settings')
+        .invokeMethod<bool>('openNotificationSettings');
+    if (opened == true) return;
+  } catch (_) {
+    // iOS e versões antigas do Android: sem o canal, cai nos ajustes do app.
+  }
+  await openAppSettings();
+}
+
+/// Pede a permissão; se o sistema não mostrar mais o pedido, abre os ajustes
+/// de notificação do Pulse.
 Future<bool> enablePulseNotifications() async {
   if (!kRemindersSupported) return true;
   try {
     if (_isAllowed(await Permission.notification.request())) return true;
-    await openAppSettings();
+    await openPulseNotificationSettings();
     return false;
   } catch (_) {
     return true;

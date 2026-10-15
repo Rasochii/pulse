@@ -311,16 +311,20 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                           : Icons.notifications_off_outlined,
                       color: allowed ? PulseColors.accent : cs.error,
                     ),
-                    title: const Text('Lembretes'),
+                    title: Text(
+                      allowed
+                          ? 'Notificações ativadas'
+                          : 'Notificações desativadas',
+                    ),
                     subtitle: Text(
                       allowed
-                          ? 'Notificações ativadas. Os horários ficam em cada hábito.'
-                          : 'Notificações bloqueadas — toque para ativar.',
+                          ? 'Toque para mudar som, vibração ou desativar nos '
+                              'ajustes do aparelho. Os horários ficam em cada hábito.'
+                          : 'Os lembretes não tocam. Toque para ativar.',
                     ),
-                    trailing: allowed
-                        ? null
-                        : const Icon(Icons.chevron_right_rounded),
-                    onTap: allowed ? null : enable,
+                    trailing: const Icon(Icons.open_in_new_rounded, size: 20),
+                    // Ativas: leva aos ajustes de notificação do Pulse no sistema.
+                    onTap: allowed ? openPulseNotificationSettings : enable,
                   ),
                 ),
               ),
