@@ -413,9 +413,10 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
         key: _formKey,
         child: ListView(
           // Padding explícito anula o do sistema: soma a barra de navegação nativa.
+          // O topo dá espaço ao rótulo flutuante do primeiro campo.
           padding: EdgeInsets.fromLTRB(
             20,
-            0,
+            12,
             20,
             32 + MediaQuery.paddingOf(context).bottom,
           ),
@@ -700,24 +701,24 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
                     onTap: () => _pickReminderAt(i),
                   ),
                 const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _addReminder,
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Adicionar'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _openSpreadSheet,
-                        icon: const Icon(Icons.auto_awesome_rounded),
-                        label: const Text('Espalhar pelo dia'),
-                      ),
-                    ),
-                  ],
+                // Um embaixo do outro: lado a lado, "Espalhar pelo dia" quebra
+                // em duas linhas nas telas mais estreitas.
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _addReminder,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Adicionar horário'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openSpreadSheet,
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: const Text('Espalhar pelo dia'),
+                  ),
                 ),
                 // Meta de vários por dia (ex.: 8 copos) com poucos horários:
                 // lembra que dá para espalhar sem montar a lista na mão.
