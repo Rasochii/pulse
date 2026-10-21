@@ -1,140 +1,57 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders: Record<string, string> = {
+const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return new Response(
-      JSON.stringify({ error: "Server misconfigured" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const jwt = authHeader.substring(7);
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } },
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
   });
+}
 
-  const { data: userData, error: userErr } = await userClient.auth.getUser(
-    jwt,
-  );
-  if (userErr || !userData.user) {
-    return new Response(
-      JSON.stringify({ error: userErr?.message ?? "Invalid session" }),
-      {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
-  const uid = userData.user.id;
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!url || !anonKey || !serviceKey) return json({ error: "Server misconfigured" }, 500);
 
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
+  const auth = req.headers.get("Authorization") ?? "";
+  if (!auth.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+
+  // Confere quem está pedindo a exclusão pelo token da sessão.
+  const userClient = createClient(url, anonKey, { global: { headers: { Authorization: auth } } });
+  const { data, error: userErr } = await userClient.auth.getUser(auth.slice(7));
+  if (userErr || !data.user) return json({ error: userErr?.message ?? "Invalid session" }, 401);
+  const uid = data.user.id;
+
+  const admin = createClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { error: wErr } = await admin
-    .from("pulse_wellbeing_logs")
-    .delete()
-    .eq("user_id", uid);
-  if (wErr) {
-    console.error("pulse_wellbeing_logs delete:", wErr);
-    return new Response(
-      JSON.stringify({ error: wErr.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+  const mood = await admin.from("pulse_wellbeing_logs").delete().eq("user_id", uid);
+  if (mood.error) return json({ error: mood.error.message }, 500);
+
+  const habits = await admin.from("pulse_habits").select("id").eq("user_id", uid);
+  if (habits.error) return json({ error: habits.error.message }, 500);
+
+  const ids = (habits.data ?? []).map((h: { id: string }) => h.id);
+  if (ids.length > 0) {
+    const done = await admin.from("pulse_habit_completions").delete().in("habit_id", ids);
+    if (done.error) return json({ error: done.error.message }, 500);
   }
 
-  const { data: habitRows, error: hSelErr } = await admin
-    .from("pulse_habits")
-    .select("id")
-    .eq("user_id", uid);
+  const delHabits = await admin.from("pulse_habits").delete().eq("user_id", uid);
+  if (delHabits.error) return json({ error: delHabits.error.message }, 500);
 
-  if (hSelErr) {
-    console.error("pulse_habits select:", hSelErr);
-    return new Response(
-      JSON.stringify({ error: hSelErr.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
+  // Apagar o usuário remove em cascata XP, conquistas e perfil.
+  const delUser = await admin.auth.admin.deleteUser(uid);
+  if (delUser.error) return json({ error: delUser.error.message }, 500);
 
-  const habitIds = (habitRows ?? []).map((r: { id: string }) => r.id);
-  if (habitIds.length > 0) {
-    const { error: cErr } = await admin
-      .from("pulse_habit_completions")
-      .delete()
-      .in("habit_id", habitIds);
-    if (cErr) {
-      console.error("pulse_habit_completions delete:", cErr);
-      return new Response(
-        JSON.stringify({ error: cErr.message }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-  }
-
-  const { error: hDelErr } = await admin
-    .from("pulse_habits")
-    .delete()
-    .eq("user_id", uid);
-  if (hDelErr) {
-    console.error("pulse_habits delete:", hDelErr);
-    return new Response(
-      JSON.stringify({ error: hDelErr.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-
-  const { error: delUserErr } = await admin.auth.admin.deleteUser(uid);
-  if (delUserErr) {
-    console.error("auth.admin.deleteUser:", delUserErr);
-    return new Response(
-      JSON.stringify({ error: delUserErr.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return json({ ok: true });
 });
