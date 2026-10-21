@@ -83,12 +83,16 @@ Sem o terceiro, o login com Google funciona no APK que você instala mas **falha
 - **SQL Editor:** rodar, se ainda não rodou, `docs/migrations/2026-10-04_wellbeing_tombstone.sql`,
   `2026-10-05_app_config.sql` e `2026-10-06_habit_sort_order.sql`;
 - **Exclusão de conta:** `supabase functions deploy delete-account` (precisa da CLI do Supabase e
-  `supabase login`). Teste excluindo uma conta de teste pelo app;
+  `supabase login`), ou cole `supabase/functions/delete-account/index.ts` no editor da função no painel
+  (Edge Functions › delete-account › Code) e clique em Deploy. Teste excluindo uma conta de teste pelo app;
 - **Authentication › URL Configuration:** adicionar `https://rasochii.github.io/pulse/` às Redirect URLs;
 - **Authentication › Providers › Google:** preencher o Client Secret (login com Google na web);
-- **Authentication › Emails › SMTP:** configurar um SMTP próprio (Resend ou Brevo têm plano grátis). O
-  padrão do Supabase envia poucos e-mails por hora, o que quebra cadastro e troca de senha com usuários reais;
-- **app_config:** preencher `store_url` da linha `android` com o link da Play depois da publicação.
+- **Authentication › Emails › SMTP:** configurar um SMTP próprio (ex.: Resend, com domínio verificado). O
+  padrão do Supabase só entrega e-mail para os membros da organização e manda cerca de 2 por hora: sem
+  SMTP próprio, quem se cadastra com e-mail não recebe a confirmação. Depois, subir o limite em
+  Authentication › Rate Limits;
+- **app_config:** `store_url` é opcional no Android (sem ele, o app monta o link da Play pelo pacote);
+  só é necessário na linha `ios`, com o link da App Store.
 
 ## 6. Play Console
 
