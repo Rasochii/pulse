@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/presentation/friendly_error.dart';
+import '../../../core/presentation/help_texts.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
+import '../../../core/presentation/widgets/help_hint.dart';
 import '../../../core/theme/app_colors.dart';
 import 'insights_providers.dart';
 
@@ -54,8 +56,9 @@ class InsightsTab extends ConsumerWidget {
                 if (i == 0) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 14),
-                    child: Text(
+                    child: TitleWithHelp(
                       'Insights',
+                      help: HelpTexts.insights,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                   );

@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/presentation/friendly_error.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/presentation/help_texts.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
+import '../../../core/presentation/widgets/help_hint.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_providers.dart';
@@ -119,8 +121,9 @@ class _HabitsListTabState extends ConsumerState<HabitsListTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    TitleWithHelp(
                       'Todos os hábitos',
+                      help: HelpTexts.habitList,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     if (list.length > 1) ...[
