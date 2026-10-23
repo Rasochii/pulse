@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_links.dart';
 import '../../../core/notifications/notification_permission.dart';
 import '../../../core/presentation/friendly_error.dart';
+import '../../../core/presentation/help_texts.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
+import '../../../core/presentation/widgets/help_hint.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_providers.dart';
@@ -380,8 +382,9 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        TitleWithHelp(
                           'Gamificação',
+                          help: HelpTexts.xp,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 10),

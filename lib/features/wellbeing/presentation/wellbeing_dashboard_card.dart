@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/presentation/friendly_error.dart';
+import '../../../core/presentation/help_texts.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
+import '../../../core/presentation/widgets/help_hint.dart';
 import '../../../core/theme/app_colors.dart';
 import 'wellbeing_history_screen.dart';
 import 'wellbeing_quick_sheet.dart';
@@ -131,8 +133,9 @@ class WellbeingDashboardCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      TitleWithHelp(
                         'Humor',
+                        help: HelpTexts.mood,
                         style: Theme.of(context).textTheme.titleSmall!.copyWith(
                               color: cs.onSurface,
                             ),

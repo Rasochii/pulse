@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/presentation/friendly_error.dart';
+import '../../../core/presentation/help_texts.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
+import '../../../core/presentation/widgets/help_hint.dart';
 import '../../../core/presentation/widgets/pulse_snackbar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_providers.dart';
@@ -69,8 +71,9 @@ class _WellbeingBodyState extends ConsumerState<_WellbeingBody> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              TitleWithHelp(
                 'Como você está?',
+                help: HelpTexts.mood,
                 style: Theme.of(context).textTheme.titleLarge!.copyWith(
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
