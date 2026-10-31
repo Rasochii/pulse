@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/presentation/friendly_error.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/presentation/help_texts.dart';
 import '../../../core/presentation/widgets/glass_panel.dart';
+import '../../../core/presentation/widgets/help_hint.dart';
 import '../../../core/utils/date_key.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../gamification/domain/level_curve.dart';
@@ -140,12 +142,13 @@ class DashboardTab extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 22),
-                      Text(
+                      TitleWithHelp(
                         switch (ref.watch(checklistDayOffsetProvider)) {
                           0 => 'Checklist de hoje',
                           1 => 'Checklist de ontem',
                           _ => 'Checklist do dia',
                         },
+                        help: HelpTexts.checklist,
                         style: Theme.of(
                           context,
                         ).textTheme.titleMedium!.copyWith(color: cs.onSurface),
@@ -175,10 +178,19 @@ class DashboardTab extends ConsumerWidget {
                         ),
                         const SizedBox(height: 16),
                       ] else ...[
+                        TitleWithHelp(
+                          'Resumo',
+                          help: HelpTexts.summary,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.titleSmall!.copyWith(color: cs.onSurface),
+                        ),
+                        const SizedBox(height: 4),
                         _MiniStatRow(dash: dash),
                         const SizedBox(height: 14),
-                        Text(
+                        TitleWithHelp(
                           'Últimos 7 dias',
+                          help: HelpTexts.last7Days,
                           style: Theme.of(
                             context,
                           ).textTheme.titleSmall!.copyWith(color: cs.onSurface),
@@ -261,8 +273,9 @@ class DashboardTab extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Text(
+                        TitleWithHelp(
                           'Heatmap (14 semanas · segunda a domingo)',
+                          help: HelpTexts.heatmap,
                           style: Theme.of(
                             context,
                           ).textTheme.titleSmall!.copyWith(color: cs.onSurface),
@@ -300,8 +313,9 @@ class DashboardTab extends ConsumerWidget {
                         ),
                         const SizedBox(height: 16),
                         if (dash.topHabits14d.isNotEmpty) ...[
-                          Text(
+                          TitleWithHelp(
                             'Top consistência (14 d)',
+                            help: HelpTexts.topConsistency,
                             style: Theme.of(context).textTheme.titleSmall!
                                 .copyWith(color: cs.onSurface),
                           ),
@@ -323,8 +337,9 @@ class DashboardTab extends ConsumerWidget {
                         ],
                         if (dash.peakHours30d.isNotEmpty) ...[
                           const SizedBox(height: 10),
-                          Text(
+                          TitleWithHelp(
                             'Horários com mais registros',
+                            help: HelpTexts.peakHours,
                             style: Theme.of(context).textTheme.titleSmall!
                                 .copyWith(color: cs.onSurface),
                           ),
@@ -450,11 +465,14 @@ class _DashboardHeaderXp extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Nível ${profile.level}',
-                style: Theme.of(context).textTheme.titleSmall!.copyWith(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: TitleWithHelp(
+                  'Nível ${profile.level}',
+                  help: HelpTexts.xp,
+                  style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Text(
